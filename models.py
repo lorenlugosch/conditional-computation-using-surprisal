@@ -6,7 +6,7 @@ sys.path.append("..") # this should be where the autoregressive model repo is lo
 import os
 import matplotlib.pyplot as plt
 import ctcdecode
-from autoregressive_models.models import AutoregressiveModel
+from autoregressive_models.models import AutoregressiveModel, RNNOutputSelect
 
 class CTCModel(torch.nn.Module):
 	def __init__(self, config):
@@ -20,18 +20,25 @@ class CTCModel(torch.nn.Module):
 		for param in self.autoregressive_model.parameters():
 			param.requires_grad = False
 
-		self.controller = torch.nn.Sequential(
-				torch.nn.Linear(config.num_mel_bins, 1),
-				torch.nn.Sigmoid()
+		self.controller = Controller()
+		self.subsequent_dim = 256
+		self.prenet = torch.nn.Sequential(
+				#Conv(in_dim=AR_out_dim, out_dim=self.subsequent_dim, filter_length=3, stride=1),
+				torch.nn.GRU(input_size=AR_out_dim, hidden_size=int(self.subsequent_dim/2), batch_first=True, bidirectional=True),
+				RNNOutputSelect(),
+				torch.nn.Dropout(0.25),
+				torch.nn.Linear(self.subsequent_dim, self.subsequent_dim),
+				torch.nn.LeakyReLU(0.125),
 		)
 		self.small_model = torch.nn.Sequential(
-				torch.nn.Linear(AR_out_dim, self.num_outputs),
+				torch.nn.Linear(self.subsequent_dim, self.num_outputs),
 				torch.nn.LogSoftmax(dim=2)
 		)
 		self.big_model = torch.nn.Sequential(
-				torch.nn.Linear(AR_out_dim, AR_out_dim),
-				torch.nn.ReLU(),
-				torch.nn.Linear(AR_out_dim, self.num_outputs),
+				torch.nn.Linear(self.subsequent_dim, config.big_model_dim),
+				torch.nn.LeakyReLU(0.125),
+				torch.nn.Dropout(0.25),
+				torch.nn.Linear(config.big_model_dim, self.num_outputs),
 				torch.nn.LogSoftmax(dim=2)
 		)
 
@@ -39,7 +46,7 @@ class CTCModel(torch.nn.Module):
 		labels = ["a" for _ in range(self.num_outputs)] # doesn't matter, just need 1-char labels
 		self.decoder = ctcdecode.CTCBeamDecoder(labels, blank_id=self.blank_index, beam_width=config.beam_width)
 
-	def forward(self, x, y, T, U):
+	def forward(self, x, y, T, U, alpha=0.75):
 		"""
 		returns log probs for each example
 		"""
@@ -51,14 +58,14 @@ class CTCModel(torch.nn.Module):
 
 		# run the neural networks
 		h, x_hat, diff = self.autoregressive_model(x, T)
+		h = self.prenet(h)
 
-		p_big = self.controller(diff ** 2)
+		p_big = self.controller(diff, alpha=alpha)
 		out_small = self.small_model(h[:,1:,:])
 		out_big = self.big_model(h[:,1:,:])
-		if not self.training:
-			p_big = (p_big > 0.5).float() # binarize during test
+		I_big = torch.distributions.binomial.Binomial(1, p_big).sample() #(p_big > 0.5).float() # select one model
 
-		encoder_out = (1 - p_big) * out_small + p_big * out_big
+		encoder_out = (1 - I_big) * out_small + I_big * out_big
 
 		# run the forward algorithm to compute the log probs
 		downsampling_factor = max(T) / encoder_out.shape[1]
@@ -70,23 +77,23 @@ class CTCModel(torch.nn.Module):
 								target_lengths=U,
 								reduction="none",
 								blank=self.blank_index)
-		return log_probs, p_big
+		return log_probs, p_big, I_big
 
-	def infer(self, x, T=None):
+	def infer(self, x, T=None, alpha=0.75):
 		# move inputs to GPU
 		if next(self.parameters()).is_cuda:
 			x = x.cuda()
 
 		# run the neural network
 		h, x_hat, diff = self.autoregressive_model(x, T)
+		h = self.prenet(h)
 
-		p_big = self.controller(diff ** 2)
+		p_big = self.controller(diff, alpha=alpha)
 		out_small = self.small_model(h[:,1:,:])
 		out_big = self.big_model(h[:,1:,:])
-		if not self.training:
-			p_big = (p_big > 0.5).float() # binarize during test
+		I_big = torch.distributions.binomial.Binomial(1, p_big).sample()
 
-		out = (1 - p_big) * out_small + p_big * out_big
+		out = (1 - I_big) * out_small + I_big * out_big
 
 		# run a beam search
 		out = torch.nn.functional.softmax(out, dim=2)
@@ -94,3 +101,36 @@ class CTCModel(torch.nn.Module):
 		decoded = [beam_result[i][0][:out_seq_len[i][0]].tolist() for i in range(len(out))]
 		return decoded
 
+
+class Controller(torch.nn.Module):
+	def __init__(self):
+		super(Controller, self).__init__()
+		self.bias = torch.nn.Parameter(torch.tensor([-100.0]), requires_grad=False)
+
+	def forward(self, diff, alpha):
+		error = (diff ** 2).sum(2).unsqueeze(2)
+		p_big = torch.sigmoid(error + self.bias)
+
+		# alpha = 1 --> p_big is uniformly distributed
+		# alpha = 0 --> p_big is learned, deterministic
+		noise = torch.rand(p_big.shape).to(p_big.device)
+		return alpha* noise + (1-alpha) * p_big
+
+class Conv(torch.nn.Module):
+	def __init__(self, in_dim, out_dim, filter_length, stride):
+		super(Conv, self).__init__()
+		self.conv = torch.nn.Conv1d(	in_channels=in_dim,
+						out_channels=out_dim,
+						kernel_size=filter_length,
+						stride=stride
+		)
+		self.filter_length = filter_length
+
+	def forward(self, x):
+		out = x.transpose(1,2)
+		left_padding = int(self.filter_length/2)
+		right_padding = int(self.filter_length/2)
+		out = torch.nn.functional.pad(out, (left_padding, right_padding))
+		out = self.conv(out)
+		out = out.transpose(1,2)
+		return out

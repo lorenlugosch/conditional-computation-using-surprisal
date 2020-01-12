@@ -35,9 +35,8 @@ def read_config(config_file):
 	config.num_layers=int(parser.get("model", "num_layers"))
 	config.num_hidden=int(parser.get("model", "num_hidden"))
 	config.num_mel_bins=int(parser.get("model", "num_mel_bins"))
+	config.big_model_dim=int(parser.get("model", "big_model_dim"))
 	config.tokenizer_training_text_path=parser.get("model", "tokenizer_training_text_path")
-	config.normalize_fbank=(parser.get("model", "normalize_fbank") == "True")
-	config.bidirectional=(parser.get("model", "bidirectional") == "True")
 
 	#[training]
 	config.base_path=parser.get("training", "base_path")

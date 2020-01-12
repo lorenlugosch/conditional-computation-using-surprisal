@@ -37,10 +37,14 @@ if not train:
 	b = [ train_dataset.__getitem__(idx) for idx in indices]
 	batch = c.__call__(b)
 	x,y,T,U,idxs = batch
+	model.eval()
 	encoded, predicted, diff = model.autoregressive_model(x,T)
 	fbank = model.autoregressive_model.compute_fbank((x,T))
 	plt.subplot(2,1,1); plt.imshow(predicted[0].cpu().detach().transpose(0,1)); plt.subplot(2,1,2); plt.imshow(fbank[0].cpu().detach().transpose(0,1)); plt.show()
-	t = 3; ((diff[0].cpu()**2).mean(1).detach() > t).sum(); plt.plot((diff[0].cpu()**2).mean(1).detach() > t); plt.show()
+	log_probs, p_big, I_big = model(x,y,T,U, alpha=0)
+	p_big = p_big.cpu()
+	plt.plot(p_big[0].detach()); plt.show()
+
 #from data import CollateWavsASR
 #import matplotlib.pyplot as plt
 #c = CollateWavsASR()
