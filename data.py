@@ -35,8 +35,9 @@ def read_config(config_file):
 	config.num_layers=int(parser.get("model", "num_layers"))
 	config.num_hidden=int(parser.get("model", "num_hidden"))
 	config.num_mel_bins=int(parser.get("model", "num_mel_bins"))
+	config.small_model_dim=int(parser.get("model", "small_model_dim"))
 	config.big_model_dim=int(parser.get("model", "big_model_dim"))
-	config.tokenizer_training_text_path=parser.get("model", "tokenizer_training_text_path")
+	#config.tokenizer_training_text_path=parser.get("model", "tokenizer_training_text_path")
 
 	#[training]
 	config.base_path=parser.get("training", "base_path")
@@ -58,29 +59,46 @@ def get_ASR_datasets(config):
 	base_path = config.base_path
 
 	# Get dfs
-	train_df = pd.read_csv(os.path.join(base_path, "train-clean-100.csv")) #"train_data.csv"))
+	train_df = pd.read_csv(os.path.join(base_path, "train_data.csv")) #"train-clean-100.csv"))
 	valid_df = pd.read_csv(os.path.join(base_path, "valid_data.csv"))
 	test_df = pd.read_csv(os.path.join(base_path, "test_data.csv"))
 
+	phoneme_df = pd.read_csv(os.path.join(base_path, "index-to-phoneme.csv"))
+	phoneme_to_phoneme_index = {phoneme_df.phoneme[i]:int(phoneme_df.index[i]) for i in range(len(phoneme_df)) }
+	config.phoneme_to_phoneme_index = phoneme_to_phoneme_index
+
 	# Create dataset objects
-	train_dataset = ASRDataset(train_df, config) #, tokenizer_sampling=True)
+	train_dataset = ASRDataset(train_df, config)
 	valid_dataset = ASRDataset(valid_df, config)
 	test_dataset = ASRDataset(test_df, config)
 
 	return train_dataset, valid_dataset, test_dataset
 
+class PhonemeTokenizer:
+	def __init__(self, phoneme_to_phoneme_index):
+		self.phoneme_to_phoneme_index = phoneme_to_phoneme_index
+		self.phoneme_index_to_phoneme = {v: k for k, v in self.phoneme_to_phoneme_index.items()}
+
+	def EncodeAsIds(self, phoneme_string):
+		return [self.phoneme_to_phoneme_index[p] for p in phoneme_string.split()]
+
+	def DecodeIds(self, phoneme_ids):
+		return " ".join([self.phoneme_index_to_phoneme[id] for id in phoneme_ids])
+
 class ASRDataset(torch.utils.data.Dataset):
-	def __init__(self, df, config, tokenizer_sampling=False):
+	def __init__(self, df, config):
 		"""
 		df: dataframe of wav file paths and transcripts
 		config: Config object (contains info about model and training)
 		"""
 		# dataframe with wav file paths, transcripts
 		self.df = df
+		self.base_path = config.base_path
+		self.tokenizer = PhonemeTokenizer(config.phoneme_to_phoneme_index)
 
+		"""
 		# get tokenizer
 		num_tokens = config.num_tokens
-		self.base_path = config.base_path
 		tokenizer_model_prefix = "tokenizer_" + str(num_tokens) + "_tokens"
 		tokenizer_path = os.path.join(self.base_path, tokenizer_model_prefix + ".model")
 		tokenizer = spm.SentencePieceProcessor()
@@ -113,6 +131,8 @@ class ASRDataset(torch.utils.data.Dataset):
 		self.tokenizer = tokenizer
 		self.tokenizer_sampling = tokenizer_sampling
 		if self.tokenizer_sampling: print("Using tokenizer sampling")
+		"""
+
 		self.loader = torch.utils.data.DataLoader(self, batch_size=config.batch_size, num_workers=multiprocessing.cpu_count(), shuffle=True, collate_fn=CollateWavsASR())
 
 	def __len__(self):
@@ -120,8 +140,11 @@ class ASRDataset(torch.utils.data.Dataset):
 
 	def __getitem__(self, idx):
 		x, fs = sf.read(os.path.join(self.base_path, self.df.path[idx]))
+		"""
 		if not self.tokenizer_sampling: y = self.tokenizer.EncodeAsIds(self.df.transcript[idx])
 		if self.tokenizer_sampling: y = self.tokenizer.SampleEncodeAsIds(self.df.transcript[idx], -1, 0.1)
+		"""
+		y = self.tokenizer.EncodeAsIds(self.df.phonemes[idx])
 		return (x, y, idx)
 
 class CollateWavsASR:

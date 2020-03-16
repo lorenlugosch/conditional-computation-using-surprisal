@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from models import CTCModel
+from models import CCModel
 from data import get_ASR_datasets, read_config
 from training import Trainer
 import argparse
@@ -20,7 +20,7 @@ config = read_config(config_path)
 torch.manual_seed(config.seed); np.random.seed(config.seed)
 
 # Initialize model
-model = CTCModel(config=config)
+model = CCModel(config=config)
 print(model)
 
 # Generate datasets
@@ -41,7 +41,7 @@ if not train:
 	encoded, predicted, diff = model.autoregressive_model(x,T)
 	fbank = model.autoregressive_model.compute_fbank((x,T))
 	plt.subplot(2,1,1); plt.imshow(predicted[0].cpu().detach().transpose(0,1)); plt.subplot(2,1,2); plt.imshow(fbank[0].cpu().detach().transpose(0,1)); plt.show()
-	log_probs, p_big, I_big = model(x,y,T,U, alpha=0)
+	loss, p_big, I_big = model(x,y,T,U, alpha=0)
 	p_big = p_big.cpu()
 	plt.plot(p_big[0].detach()); plt.show()
 
@@ -62,12 +62,11 @@ if train:
 	for epoch in range(config.num_epochs):
 		print("========= Epoch %d of %d =========" % (epoch+1, config.num_epochs))
 		train_WER, train_loss = trainer.train(train_dataset)
-		valid_WER, valid_loss = trainer.test(valid_dataset, set="valid")
-
-		print("========= Results: epoch %d of %d =========" % (epoch+1, config.num_epochs))
-		print("train WER: %.2f| train loss: %.2f| valid WER: %.2f| valid loss: %.2f\n" % (train_WER, train_loss, valid_WER, valid_loss) )
-
-		trainer.save_checkpoint(WER=valid_WER)
+		if epoch % 10 == 0:
+			valid_WER, valid_loss = trainer.test(valid_dataset, set="valid")
+			print("========= Results: epoch %d of %d =========" % (epoch+1, config.num_epochs))
+			print("train WER: %.2f| train loss: %.2f| valid WER: %.2f| valid loss: %.2f\n" % (train_WER, train_loss, valid_WER, valid_loss) )
+			trainer.save_checkpoint(WER=valid_WER)
 
 	trainer.load_best_model()
 	test_WER, test_loss = trainer.test(test_dataset, set="test")

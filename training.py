@@ -71,6 +71,7 @@ class Trainer:
 			self.optimizer.step()
 			train_loss += loss.item() * batch_size
 			num_examples += batch_size
+			print(loss)
 			if idx % print_interval == 0:
 				print("loss: " + str(loss.cpu().data.numpy().item()))
 				guess = self.model.infer(x, T)[0][:U[0]]

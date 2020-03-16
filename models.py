@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 import ctcdecode
 from autoregressive_models.models import AutoregressiveModel, RNNOutputSelect
 
-class CTCModel(torch.nn.Module):
+class CCModel(torch.nn.Module):
 	def __init__(self, config):
-		super(CTCModel, self).__init__()
+		super(CCModel, self).__init__()
 		self.blank_index = config.num_tokens
 		self.num_outputs = config.num_tokens + 1
 
@@ -21,23 +21,35 @@ class CTCModel(torch.nn.Module):
 			param.requires_grad = False
 
 		self.controller = Controller()
-		self.subsequent_dim = 256
+		self.subsequent_dim = AR_out_dim #512
+		"""
 		self.prenet = torch.nn.Sequential(
 				#Conv(in_dim=AR_out_dim, out_dim=self.subsequent_dim, filter_length=3, stride=1),
-				torch.nn.GRU(input_size=AR_out_dim, hidden_size=int(self.subsequent_dim/2), batch_first=True, bidirectional=True),
+				torch.nn.GRU(input_size=AR_out_dim, hidden_size=self.subsequent_dim, batch_first=True, bidirectional=True),
 				RNNOutputSelect(),
 				torch.nn.Dropout(0.25),
-				torch.nn.Linear(self.subsequent_dim, self.subsequent_dim),
+				torch.nn.Linear(self.subsequent_dim*2, self.subsequent_dim),
+				torch.nn.LeakyReLU(0.125),
+				#torch.nn.GRU(input_size=self.subsequent_dim, hidden_size=self.subsequent_dim, batch_first=True, bidirectional=True),
+				#RNNOutputSelect(),
+				#torch.nn.Dropout(0.25),
+				#torch.nn.Linear(self.subsequent_dim*2, self.subsequent_dim),
+				Conv(in_dim=self.subsequent_dim, out_dim=self.subsequent_dim, filter_length=3, stride=1),
 				torch.nn.LeakyReLU(0.125),
 		)
+		"""
 		self.small_model = torch.nn.Sequential(
-				torch.nn.Linear(self.subsequent_dim, self.num_outputs),
+				torch.nn.Linear(self.subsequent_dim, config.small_model_dim),
+				torch.nn.LeakyReLU(0.125),
+				torch.nn.Linear(config.small_model_dim, self.num_outputs),
 				torch.nn.LogSoftmax(dim=2)
 		)
 		self.big_model = torch.nn.Sequential(
 				torch.nn.Linear(self.subsequent_dim, config.big_model_dim),
 				torch.nn.LeakyReLU(0.125),
-				torch.nn.Dropout(0.25),
+				torch.nn.Linear(config.big_model_dim, config.big_model_dim),
+				torch.nn.LeakyReLU(0.125),
+				#torch.nn.Dropout(0.25),
 				torch.nn.Linear(config.big_model_dim, self.num_outputs),
 				torch.nn.LogSoftmax(dim=2)
 		)
@@ -58,7 +70,7 @@ class CTCModel(torch.nn.Module):
 
 		# run the neural networks
 		h, x_hat, diff = self.autoregressive_model(x, T)
-		h = self.prenet(h)
+		#h = self.prenet(h)
 
 		p_big = self.controller(diff, alpha=alpha)
 		out_small = self.small_model(h[:,1:,:])
@@ -67,8 +79,15 @@ class CTCModel(torch.nn.Module):
 
 		encoder_out = (1 - I_big) * out_small + I_big * out_big
 
-		# run the forward algorithm to compute the log probs
+		# compute the log probs
 		downsampling_factor = max(T) / encoder_out.shape[1]
+		"""
+		y = y[:, ::int(downsampling_factor)]
+		y = y[:,:encoder_out.shape[1]].reshape(-1)
+		batch_size = encoder_out.shape[0]
+		encoder_out = encoder_out.view(batch_size*encoder_out.shape[1], -1)
+		loss = -torch.nn.functional.cross_entropy(encoder_out, y, ignore_index=-1)
+		"""
 		T = [round(t / downsampling_factor) for t in T]
 		encoder_out = encoder_out.transpose(0,1) # (N, T, #labels) --> (T, N, #labels)
 		log_probs = -torch.nn.functional.ctc_loss(	log_probs=encoder_out,
@@ -77,6 +96,7 @@ class CTCModel(torch.nn.Module):
 								target_lengths=U,
 								reduction="none",
 								blank=self.blank_index)
+
 		return log_probs, p_big, I_big
 
 	def infer(self, x, T=None, alpha=0.75):
@@ -86,7 +106,7 @@ class CTCModel(torch.nn.Module):
 
 		# run the neural network
 		h, x_hat, diff = self.autoregressive_model(x, T)
-		h = self.prenet(h)
+		#h = self.prenet(h)
 
 		p_big = self.controller(diff, alpha=alpha)
 		out_small = self.small_model(h[:,1:,:])
