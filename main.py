@@ -21,7 +21,7 @@ torch.manual_seed(config.seed); np.random.seed(config.seed)
 
 # Initialize model
 model = CCModel(config=config)
-print(model)
+#print(model)
 
 # Generate datasets
 train_dataset, valid_dataset, test_dataset = get_ASR_datasets(config)
@@ -62,11 +62,10 @@ if train:
 	for epoch in range(config.num_epochs):
 		print("========= Epoch %d of %d =========" % (epoch+1, config.num_epochs))
 		train_WER, train_loss = trainer.train(train_dataset)
-		if epoch % 10 == 0:
-			valid_WER, valid_loss = trainer.test(valid_dataset, set="valid")
-			print("========= Results: epoch %d of %d =========" % (epoch+1, config.num_epochs))
-			print("train WER: %.2f| train loss: %.2f| valid WER: %.2f| valid loss: %.2f\n" % (train_WER, train_loss, valid_WER, valid_loss) )
-			trainer.save_checkpoint(WER=valid_WER)
+		valid_WER, valid_loss = trainer.test(valid_dataset, set="valid")
+		print("========= Results: epoch %d of %d =========" % (epoch+1, config.num_epochs))
+		print("train WER: %.2f| train loss: %.2f| valid WER: %.2f| valid loss: %.2f\n" % (train_WER, train_loss, valid_WER, valid_loss) )
+		trainer.save_checkpoint(WER=valid_WER)
 
 	trainer.load_best_model()
 	test_WER, test_loss = trainer.test(test_dataset, set="test")

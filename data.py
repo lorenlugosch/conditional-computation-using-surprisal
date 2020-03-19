@@ -37,6 +37,7 @@ def read_config(config_file):
 	config.num_mel_bins=int(parser.get("model", "num_mel_bins"))
 	config.small_model_dim=int(parser.get("model", "small_model_dim"))
 	config.big_model_dim=int(parser.get("model", "big_model_dim"))
+	config.use_AR_features=parser.get("model", "use_AR_features")=="True"
 	#config.tokenizer_training_text_path=parser.get("model", "tokenizer_training_text_path")
 
 	#[training]
@@ -46,6 +47,11 @@ def read_config(config_file):
 	config.gamma=float(parser.get("training", "gamma"))
 	config.batch_size=int(parser.get("training", "batch_size"))
 	config.num_epochs=int(parser.get("training", "num_epochs"))
+	config.sample_based_on_surprisal_during_training=parser.get("training", "sample_based_on_surprisal_during_testing")=="True"
+	# if sampling not based on surprisal:
+	config.probability_of_sampling_big_during_training=float(parser.get("training", "probability_of_sampling_big_during_training"))
+	config.sample_based_on_surprisal_during_testing=parser.get("training", "sample_based_on_surprisal_during_testing")=="True"
+	config.probability_of_sampling_big_during_testing=float(parser.get("training", "probability_of_sampling_big_during_testing"))
 
 	#[inference]
 	config.beam_width=int(parser.get("inference", "beam_width"))

@@ -8,57 +8,74 @@ import matplotlib.pyplot as plt
 import ctcdecode
 from autoregressive_models.models import AutoregressiveModel, RNNOutputSelect
 
+def count_params(model):
+	return sum([p.numel() for p in model.parameters()])
+
 class CCModel(torch.nn.Module):
 	def __init__(self, config):
 		super(CCModel, self).__init__()
 		self.blank_index = config.num_tokens
 		self.num_outputs = config.num_tokens + 1
+		self.sample_based_on_surprisal_during_training = config.sample_based_on_surprisal_during_training
+		self.probability_of_sampling_big_during_training = config.probability_of_sampling_big_during_training
+		self.sample_based_on_surprisal_during_testing = config.sample_based_on_surprisal_during_testing
+		self.probability_of_sampling_big_during_testing = config.probability_of_sampling_big_during_testing
 
 		self.autoregressive_model = AutoregressiveModel(config)
 		self.autoregressive_model.load_state_dict(torch.load("../autoregressive_models/experiments/80_mel/training/model_state.pth"))
+		print("Number of params in autoregressive model:", count_params(self.autoregressive_model))
 		AR_out_dim = self.autoregressive_model.encoder.out_dim
 		for param in self.autoregressive_model.parameters():
 			param.requires_grad = False
 
 		self.controller = Controller()
-		self.subsequent_dim = AR_out_dim #512
-		"""
+		self.use_AR_features = config.use_AR_features
+		if self.use_AR_features:
+			self.encoder_out_dim = self.autoregressive_model.encoder.out_dim
+		else:
+			self.encoder_out_dim = config.num_mel_bins
+		self.subsequent_dim = self.autoregressive_model.encoder.out_dim
+
 		self.prenet = torch.nn.Sequential(
-				#Conv(in_dim=AR_out_dim, out_dim=self.subsequent_dim, filter_length=3, stride=1),
-				torch.nn.GRU(input_size=AR_out_dim, hidden_size=self.subsequent_dim, batch_first=True, bidirectional=True),
+				#Conv(in_dim=AR_out_dim, out_dim=self.subsequent_dim, filter_length=11, stride=1),
+				#torch.nn.LeakyReLU(0.125),
+				torch.nn.GRU(input_size=self.encoder_out_dim, hidden_size=self.subsequent_dim, batch_first=True, bidirectional=True),
 				RNNOutputSelect(),
 				torch.nn.Dropout(0.25),
-				torch.nn.Linear(self.subsequent_dim*2, self.subsequent_dim),
-				torch.nn.LeakyReLU(0.125),
+				#torch.nn.Linear(self.subsequent_dim*2, self.subsequent_dim),
+				#torch.nn.LeakyReLU(0.125),
 				#torch.nn.GRU(input_size=self.subsequent_dim, hidden_size=self.subsequent_dim, batch_first=True, bidirectional=True),
 				#RNNOutputSelect(),
 				#torch.nn.Dropout(0.25),
 				#torch.nn.Linear(self.subsequent_dim*2, self.subsequent_dim),
-				Conv(in_dim=self.subsequent_dim, out_dim=self.subsequent_dim, filter_length=3, stride=1),
-				torch.nn.LeakyReLU(0.125),
+				#Conv(in_dim=self.subsequent_dim, out_dim=self.subsequent_dim, filter_length=3, stride=1),
+				#torch.nn.LeakyReLU(0.125),
 		)
-		"""
+		print("Number of params in prenet:", count_params(self.prenet))
+
 		self.small_model = torch.nn.Sequential(
-				torch.nn.Linear(self.subsequent_dim, config.small_model_dim),
+				torch.nn.Linear(self.subsequent_dim * 2, config.small_model_dim),
 				torch.nn.LeakyReLU(0.125),
 				torch.nn.Linear(config.small_model_dim, self.num_outputs),
 				torch.nn.LogSoftmax(dim=2)
 		)
+		print("Number of params in small model:", count_params(self.small_model))
+
 		self.big_model = torch.nn.Sequential(
-				torch.nn.Linear(self.subsequent_dim, config.big_model_dim),
+				torch.nn.Linear(self.subsequent_dim * 2, config.big_model_dim),
 				torch.nn.LeakyReLU(0.125),
 				torch.nn.Linear(config.big_model_dim, config.big_model_dim),
 				torch.nn.LeakyReLU(0.125),
-				#torch.nn.Dropout(0.25),
 				torch.nn.Linear(config.big_model_dim, self.num_outputs),
 				torch.nn.LogSoftmax(dim=2)
 		)
+		print("Number of params in big model:", count_params(self.big_model))
 
 		# beam search
 		labels = ["a" for _ in range(self.num_outputs)] # doesn't matter, just need 1-char labels
 		self.decoder = ctcdecode.CTCBeamDecoder(labels, blank_id=self.blank_index, beam_width=config.beam_width)
 
-	def forward(self, x, y, T, U, alpha=0.75):
+	def forward(self, x, y, T, U):
 		"""
 		returns log probs for each example
 		"""
@@ -70,49 +87,73 @@ class CCModel(torch.nn.Module):
 
 		# run the neural networks
 		h, x_hat, diff = self.autoregressive_model(x, T)
-		#h = self.prenet(h)
+		if not self.use_AR_features: # use raw input features
+			h = self.autoregressive_model.compute_fbank((x,T))
+			h = self.prenet(h)
+			out_small = self.small_model(h)
+			out_big = self.big_model(h)
+		else: # use AR features
+			h = self.prenet(h)
+			out_small = self.small_model(h[:,1:,:])
+			out_big = self.big_model(h[:,1:,:])
 
-		p_big = self.controller(diff, alpha=alpha)
-		out_small = self.small_model(h[:,1:,:])
-		out_big = self.big_model(h[:,1:,:])
-		I_big = torch.distributions.binomial.Binomial(1, p_big).sample() #(p_big > 0.5).float() # select one model
-
-		encoder_out = (1 - I_big) * out_small + I_big * out_big
+		# sample from big or small models
+		if self.training:
+			if self.sample_based_on_surprisal_during_training:
+				p_big = self.controller(diff)
+			else:
+				p_big = torch.tensor([self.probability_of_sampling_big_during_training] * max(T)).to(diff.device)
+		else:
+			if self.sample_based_on_surprisal_during_testing:
+				p_big = self.controller(diff)
+			else:
+				p_big = torch.tensor([self.probability_of_sampling_big_during_testing] * max(T)).to(diff.device)
+		I_big = torch.distributions.binomial.Binomial(1, p_big).sample()
+		out = (1 - I_big) * out_small + I_big * out_big
 
 		# compute the log probs
-		downsampling_factor = max(T) / encoder_out.shape[1]
-		"""
-		y = y[:, ::int(downsampling_factor)]
-		y = y[:,:encoder_out.shape[1]].reshape(-1)
-		batch_size = encoder_out.shape[0]
-		encoder_out = encoder_out.view(batch_size*encoder_out.shape[1], -1)
-		loss = -torch.nn.functional.cross_entropy(encoder_out, y, ignore_index=-1)
-		"""
+		downsampling_factor = max(T) / out.shape[1]
 		T = [round(t / downsampling_factor) for t in T]
-		encoder_out = encoder_out.transpose(0,1) # (N, T, #labels) --> (T, N, #labels)
-		log_probs = -torch.nn.functional.ctc_loss(	log_probs=encoder_out,
+		out = out.transpose(0,1) # (N, T, #labels) --> (T, N, #labels)
+		log_probs = -torch.nn.functional.ctc_loss(	log_probs=out,
 								targets=y,
 								input_lengths=T,
 								target_lengths=U,
 								reduction="none",
-								blank=self.blank_index)
+								blank=self.blank_index,
+								)
 
 		return log_probs, p_big, I_big
 
-	def infer(self, x, T=None, alpha=0.75):
+	def infer(self, x, T=None):
 		# move inputs to GPU
 		if next(self.parameters()).is_cuda:
 			x = x.cuda()
 
 		# run the neural network
 		h, x_hat, diff = self.autoregressive_model(x, T)
-		#h = self.prenet(h)
+		if not self.use_AR_features: # use raw input features
+			h = self.autoregressive_model.compute_fbank((x,T))
+			h = self.prenet(h)
+			out_small = self.small_model(h)
+			out_big = self.big_model(h)
+		else: # use AR features
+			h = self.prenet(h)
+			out_small = self.small_model(h[:,1:,:])
+			out_big = self.big_model(h[:,1:,:])
 
-		p_big = self.controller(diff, alpha=alpha)
-		out_small = self.small_model(h[:,1:,:])
-		out_big = self.big_model(h[:,1:,:])
+		# sample from big or small models
+		if self.training:
+			if self.sample_based_on_surprisal_during_training:
+				p_big = self.controller(diff)
+			else:
+				p_big = torch.tensor([self.probability_of_sampling_big_during_training] * max(T)).to(diff.device)
+		else:
+			if self.sample_based_on_surprisal_during_testing:
+				p_big = self.controller(diff)
+			else:
+				p_big = torch.tensor([self.probability_of_sampling_big_during_testing] * max(T)).to(diff.device)
 		I_big = torch.distributions.binomial.Binomial(1, p_big).sample()
-
 		out = (1 - I_big) * out_small + I_big * out_big
 
 		# run a beam search
@@ -126,15 +167,13 @@ class Controller(torch.nn.Module):
 	def __init__(self):
 		super(Controller, self).__init__()
 		self.bias = torch.nn.Parameter(torch.tensor([-100.0]), requires_grad=False)
+		self.weight = torch.nn.Parameter(torch.tensor([1.0]), requires_grad=False)
 
-	def forward(self, diff, alpha):
+	def forward(self, diff):
 		error = (diff ** 2).sum(2).unsqueeze(2)
-		p_big = torch.sigmoid(error + self.bias)
+		p_big = torch.sigmoid(error*self.weight + self.bias)
 
-		# alpha = 1 --> p_big is uniformly distributed
-		# alpha = 0 --> p_big is learned, deterministic
-		noise = torch.rand(p_big.shape).to(p_big.device)
-		return alpha* noise + (1-alpha) * p_big
+		return p_big
 
 class Conv(torch.nn.Module):
 	def __init__(self, in_dim, out_dim, filter_length, stride):

@@ -19,8 +19,6 @@ class Trainer:
 		self.df = None
 		if torch.cuda.is_available(): self.model.cuda()
 		self.best_WER = np.inf
-		self.alpha = 0.0 # 1 = uniformly select big or small, 0 = learned selection
-		self.alpha_decay = 1.0
 
 	def load_checkpoint(self):
 		if os.path.isfile(os.path.join(self.checkpoint_path, "model_state.pth")):
@@ -58,13 +56,15 @@ class Trainer:
 		self.model.train()
 		for g in self.optimizer.param_groups:
 			print("Current learning rate:", g['lr'])
-		print("Current alpha: ", self.alpha)
 		#self.model.print_frozen()
 		for idx, batch in enumerate(tqdm(dataset.loader)):
 			x,y,T,U,idxs = batch
 			batch_size = len(x)
-			log_probs,p_big,I_big = self.model(x,y,T,U,alpha=self.alpha)
+			log_probs,p_big,I_big = self.model(x,y,T,U)
 			loss = -log_probs.mean() #+ 0.01 * torch.log(1 - p_big).mean()
+			if torch.isnan(loss):
+				print("nan detected!")
+				sys.exit()
 			self.optimizer.zero_grad()
 			loss.backward()
 			clip_value = 5; torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_value)
@@ -88,7 +88,6 @@ class Trainer:
 		results = {"loss" : train_loss, "WER" : train_WER, "set": "train"}
 		self.log(results)
 		self.epoch += 1
-		self.alpha *= self.alpha_decay
 		return train_WER, train_loss
 
 	def test(self, dataset, set):
@@ -101,7 +100,7 @@ class Trainer:
 			x,y,T,U,_ = batch
 			batch_size = len(x)
 			num_examples += batch_size
-			log_probs,p_big,I_big = self.model(x,y,T,U,alpha=self.alpha)
+			log_probs,p_big,I_big = self.model(x,y,T,U)
 			loss = -log_probs.mean() #+ torch.log(1 - p_big).mean()
 			test_loss += loss.item() * batch_size
 			WERs = []
