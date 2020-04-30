@@ -38,9 +38,11 @@ def read_config(config_file):
 	config.small_model_dim=int(parser.get("model", "small_model_dim"))
 	config.big_model_dim=int(parser.get("model", "big_model_dim"))
 	config.use_AR_features=parser.get("model", "use_AR_features")=="True"
+	config.frame_skipping=parser.get("model", "frame_skipping")=="True"
 	#config.tokenizer_training_text_path=parser.get("model", "tokenizer_training_text_path")
 
 	#[training]
+	config.validation_period=int(parser.get("training", "validation_period"))
 	config.base_path=parser.get("training", "base_path")
 	config.lr=float(parser.get("training", "lr"))
 	config.lr_period=int(parser.get("training", "lr_period"))
@@ -69,7 +71,7 @@ def get_ASR_datasets(config):
 	valid_df = pd.read_csv(os.path.join(base_path, "valid_data.csv"))
 	test_df = pd.read_csv(os.path.join(base_path, "test_data.csv"))
 
-	phoneme_df = pd.read_csv(os.path.join(base_path, "index-to-phoneme.csv"))
+	phoneme_df = pd.read_csv(os.path.join(base_path, "index-to-phoneme-39.csv"))
 	phoneme_to_phoneme_index = {phoneme_df.phoneme[i]:int(phoneme_df.index[i]) for i in range(len(phoneme_df)) }
 	config.phoneme_to_phoneme_index = phoneme_to_phoneme_index
 
@@ -102,43 +104,6 @@ class ASRDataset(torch.utils.data.Dataset):
 		self.base_path = config.base_path
 		self.tokenizer = PhonemeTokenizer(config.phoneme_to_phoneme_index)
 
-		"""
-		# get tokenizer
-		num_tokens = config.num_tokens
-		tokenizer_model_prefix = "tokenizer_" + str(num_tokens) + "_tokens"
-		tokenizer_path = os.path.join(self.base_path, tokenizer_model_prefix + ".model")
-		tokenizer = spm.SentencePieceProcessor()
-
-		# if tokenizer exists, load it
-		try:
-			print("Loading tokenizer from " + tokenizer_path)
-			tokenizer.Load(tokenizer_path)
-
-		# if not, create it
-		except OSError:
-			print("Tokenizer not found. Building tokenizer from training labels.")
-
-			# create txt file needed by tokenizer training
-			txt_path = os.path.join(self.base_path, config.tokenizer_training_text_path)
-			#with open(txt_path, "w") as f:
-			#	f.writelines([s + "\n" for s in df.transcript])
-
-			# train tokenizer
-			spm.SentencePieceTrainer.Train('--input=' + txt_path + ' --model_prefix=' + tokenizer_model_prefix + ' --vocab_size=' + str(num_tokens) + ' --hard_vocab_limit=false')
-
-			# move tokenizer to base_path
-			call("mv " + tokenizer_model_prefix + ".vocab " + self.base_path, shell=True)
-			call("mv " + tokenizer_model_prefix + ".model " + self.base_path, shell=True)
-			#call("rm " + txt_path, shell=True)
-
-			# load it
-			tokenizer.Load(tokenizer_path)
-
-		self.tokenizer = tokenizer
-		self.tokenizer_sampling = tokenizer_sampling
-		if self.tokenizer_sampling: print("Using tokenizer sampling")
-		"""
-
 		self.loader = torch.utils.data.DataLoader(self, batch_size=config.batch_size, num_workers=multiprocessing.cpu_count(), shuffle=True, collate_fn=CollateWavsASR())
 
 	def __len__(self):
@@ -150,7 +115,7 @@ class ASRDataset(torch.utils.data.Dataset):
 		if not self.tokenizer_sampling: y = self.tokenizer.EncodeAsIds(self.df.transcript[idx])
 		if self.tokenizer_sampling: y = self.tokenizer.SampleEncodeAsIds(self.df.transcript[idx], -1, 0.1)
 		"""
-		y = self.tokenizer.EncodeAsIds(self.df.phonemes[idx])
+		y = self.tokenizer.EncodeAsIds(self.df["phonemes_39"][idx])
 		return (x, y, idx)
 
 class CollateWavsASR:

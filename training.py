@@ -49,6 +49,43 @@ class Trainer:
 		self.df.loc[len(self.df)] = results
 		self.df.to_csv(os.path.join(self.checkpoint_path, "log.csv"))
 
+	def train_controller(self, dataset):
+		# make controller trainable
+		for param in self.model.controller.parameters():
+			param.requires_grad = True
+
+		# train controller
+		controller_optimizer = torch.optim.Adam(self.model.parameters(), lr=0.01)
+		self.model.eval() # we want the feature statistics to match test time
+		for idx, batch in enumerate(tqdm(dataset.loader)):
+			x,_,T,_,idxs = batch
+			p_big = self.model.compute_p_big(x,T)
+			loss = 0.5*(p_big.mean() - 0.5)**2 + 0.5*(p_big.var() - 0.04)**2
+			print("loss:", loss.item())
+			print("p_big.mean():", p_big.mean())
+			print("p_big.var():", p_big.var())
+			print("weight:", self.model.controller.weight)
+			print("bias:", self.model.controller.bias)
+			controller_optimizer.zero_grad()
+			loss.backward()
+			controller_optimizer.step()
+
+		# freeze controller
+		for param in self.model.controller.parameters():
+			param.requires_grad = False
+
+	def remove_repeated_silence(self, x):
+		x_out = []
+		prev = ""
+		for xx in x.split():
+			if xx != "sil":
+				x_out.append(xx)
+			else:
+				if prev != "sil":
+					x_out.append(xx)
+			prev = xx
+		return " ".join(x_out)
+
 	def train(self, dataset, print_interval=100):
 		train_WER = 0
 		train_loss = 0
@@ -74,10 +111,12 @@ class Trainer:
 			if idx % print_interval == 0:
 				print("loss: " + str(loss.cpu().data.numpy().item()))
 				guess = self.model.infer(x, T)[0][:U[0]]
-				print("guess:", dataset.tokenizer.DecodeIds(guess))
+				guess_decoded = self.remove_repeated_silence(dataset.tokenizer.DecodeIds(guess))
+				print("guess:", guess_decoded)
 				truth = y[0].cpu().data.numpy().tolist()[:U[0]]
-				print("truth:", dataset.tokenizer.DecodeIds(truth))
-				print("WER: ", compute_WER(dataset.tokenizer.DecodeIds(truth), dataset.tokenizer.DecodeIds(guess)))
+				truth_decoded = self.remove_repeated_silence(dataset.tokenizer.DecodeIds(truth))
+				print("truth:", truth_decoded)
+				print("WER: ", compute_WER(truth_decoded, guess_decoded))
 				print("avg p_big: ", p_big.mean().item())
 				print("avg I_big: ", I_big.mean().item())
 				print("")
@@ -108,12 +147,14 @@ class Trainer:
 			for i in range(batch_size):
 				guess = guesses[i][:U[i]]
 				truth = y[i].cpu().data.numpy().tolist()[:U[i]]
-				WERs.append(compute_WER(dataset.tokenizer.DecodeIds(truth), dataset.tokenizer.DecodeIds(guess)))
+				guess_decoded = self.remove_repeated_silence(dataset.tokenizer.DecodeIds(guess))
+				truth_decoded = self.remove_repeated_silence(dataset.tokenizer.DecodeIds(truth))
+				WERs.append(compute_WER(truth_decoded, guess_decoded))
 			WER = np.array(WERs).mean()
 			test_WER += WER * batch_size
-			print("guess:", dataset.tokenizer.DecodeIds(guess))
-			print("truth:", dataset.tokenizer.DecodeIds(truth))
-			print("WER: ", compute_WER(dataset.tokenizer.DecodeIds(truth), dataset.tokenizer.DecodeIds(guess)))
+			print("guess:", guess_decoded)
+			print("truth:", truth_decoded)
+			print("WER: ", compute_WER(truth_decoded, guess_decoded))
 			print("p_big: ", p_big.mean().item())
 			print("")
 
