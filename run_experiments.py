@@ -126,6 +126,7 @@ plt.show()
 
 # print test results
 for experiment in experiments:
+	print("note! misleading, need to separate results")
 	test_loss_mean, test_loss_std = experiment.get_results(column="loss", set="test")
 	test_WER_mean, test_WER_std = experiment.get_results(column="WER", set="test")
 	test_FLOPs_mean, _ = experiment.get_results(column="FLOPs_mean", set="test")

@@ -18,7 +18,7 @@ class CCModel(torch.nn.Module):
 		self.num_outputs = config.num_tokens + 1
 		self.sample_based_on_surprisal_during_training = config.sample_based_on_surprisal_during_training
 		self.probability_of_sampling_big_during_training = config.probability_of_sampling_big_during_training
-		self.sample_based_on_surprisal_during_testing = config.sample_based_on_surprisal_during_testing
+		#self.sample_based_on_surprisal_during_testing = config.sample_based_on_surprisal_during_testing
 		self.probability_of_sampling_big_during_testing = config.probability_of_sampling_big_during_testing
 
 		self.autoregressive_model = AutoregressiveModel(config)
@@ -36,7 +36,7 @@ class CCModel(torch.nn.Module):
 			self.encoder_out_dim = self.autoregressive_model.encoder.out_dim
 		else:
 			self.encoder_out_dim = config.num_mel_bins
-		self.prenet_out_dim = self.encoder_out_dim # 1024
+		self.prenet_out_dim = 512 # 1024
 		self.main_out_dim = self.prenet_out_dim
 		self.postnet_out_dim = self.prenet_out_dim
 
@@ -73,6 +73,10 @@ class CCModel(torch.nn.Module):
 				torch.nn.LogSoftmax(dim=2)
 		)
 		print("Number of params in postnet:", count_params(self.postnet))
+
+		# for computing the cost of running big and small models:
+		self.FLOPs_big = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.big_model) + count_params(self.postnet)
+		self.FLOPs_small = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.small_model) + count_params(self.postnet)
 
 		# beam search
 		labels = ["a" for _ in range(self.num_outputs)] # doesn't matter, just need 1-char labels

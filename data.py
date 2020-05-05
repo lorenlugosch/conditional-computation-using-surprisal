@@ -49,7 +49,7 @@ def read_config(config_file):
 	config.gamma=float(parser.get("training", "gamma"))
 	config.batch_size=int(parser.get("training", "batch_size"))
 	config.num_epochs=int(parser.get("training", "num_epochs"))
-	config.sample_based_on_surprisal_during_training=parser.get("training", "sample_based_on_surprisal_during_testing")=="True"
+	config.sample_based_on_surprisal_during_training=parser.get("training", "sample_based_on_surprisal_during_training")=="True"
 	# if sampling not based on surprisal:
 	config.probability_of_sampling_big_during_training=float(parser.get("training", "probability_of_sampling_big_during_training"))
 	#config.sample_based_on_surprisal_during_testing=parser.get("training", "sample_based_on_surprisal_during_testing")=="True"

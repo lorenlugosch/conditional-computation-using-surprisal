@@ -140,7 +140,7 @@ class Trainer:
 		FLOPs = np.array(FLOPs)
 		FLOPs_mean = FLOPs.mean()
 		FLOPs_std = FLOPs.std()
-		results = {"loss" : train_loss, "WER" : train_WER, "FLOPs_mean" : FLOPs_mean, "FLOPs_std": FLOPs_std, "set": "train", "surprisal-triggered": config.sample_based_on_surprisal_during_training}
+		results = {"loss" : train_loss, "WER" : train_WER, "FLOPs_mean" : FLOPs_mean, "FLOPs_std": FLOPs_std, "set": "train", "surprisal-triggered": self.model.sample_based_on_surprisal_during_training}
 		self.log(results)
 		self.epoch += 1
 		return train_WER, train_loss, FLOPs_mean, FLOPs_std
@@ -182,6 +182,6 @@ class Trainer:
 		FLOPs = np.array(FLOPs)
 		FLOPs_mean = FLOPs.mean()
 		FLOPs_std = FLOPs.std()
-		results = {"loss" : test_loss, "WER" : test_WER, "FLOPs_mean" : FLOPs_mean, "FLOPs_std": FLOPs_std, "set": set, "surprisal-triggered":config.sample_based_on_surprisal_during_testing}
+		results = {"loss" : test_loss, "WER" : test_WER, "FLOPs_mean" : FLOPs_mean, "FLOPs_std": FLOPs_std, "set": set, "surprisal-triggered":self.model.sample_based_on_surprisal_during_testing}
 		self.log(results)
 		return test_WER, test_loss, FLOPs_mean, FLOPs_std
