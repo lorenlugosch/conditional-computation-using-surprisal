@@ -52,7 +52,7 @@ def read_config(config_file):
 	config.sample_based_on_surprisal_during_training=parser.get("training", "sample_based_on_surprisal_during_testing")=="True"
 	# if sampling not based on surprisal:
 	config.probability_of_sampling_big_during_training=float(parser.get("training", "probability_of_sampling_big_during_training"))
-	config.sample_based_on_surprisal_during_testing=parser.get("training", "sample_based_on_surprisal_during_testing")=="True"
+	#config.sample_based_on_surprisal_during_testing=parser.get("training", "sample_based_on_surprisal_during_testing")=="True"
 	config.probability_of_sampling_big_during_testing=float(parser.get("training", "probability_of_sampling_big_during_testing"))
 
 	#[inference]

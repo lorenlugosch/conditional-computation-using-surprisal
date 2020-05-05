@@ -18,8 +18,10 @@ class Trainer:
 		self.epoch = 0
 		self.df = None
 		if torch.cuda.is_available(): self.model.cuda()
-		self.best_WER = np.inf
+		self.best_WER_random = np.inf
+		self.best_WER_surprisal = np.inf
 
+	"""
 	def load_checkpoint(self):
 		if os.path.isfile(os.path.join(self.checkpoint_path, "model_state.pth")):
 			try:
@@ -29,17 +31,27 @@ class Trainer:
 				print("Could not load previous model; starting from scratch")
 		else:
 			print("No previous model; starting from scratch")
+	"""
 
-	def load_best_model(self):
+	def load_best_model(self, sampling_method):
 		device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-		self.model.load_state_dict(torch.load(os.path.join(self.checkpoint_path, "best_model.pth"), map_location=device))
+		if sampling_method == "random":
+			self.model.load_state_dict(torch.load(os.path.join(self.checkpoint_path, "best_model_random.pth"), map_location=device))
+		if sampling_method == "surprisal":
+			self.model.load_state_dict(torch.load(os.path.join(self.checkpoint_path, "best_model_surprisal.pth"), map_location=device))
 
-	def save_checkpoint(self, WER):
+	def save_checkpoint(self, WER, sampling_method):
 		try:
-			torch.save(self.model.state_dict(), os.path.join(self.checkpoint_path, "model_state.pth"))
-			if WER < self.best_WER:
-				self.best_WER = WER
-				torch.save(self.model.state_dict(), os.path.join(self.checkpoint_path, "best_model.pth"))
+			if sampling_method == "random":
+				torch.save(self.model.state_dict(), os.path.join(self.checkpoint_path, "model_state_random.pth"))
+				if WER < self.best_WER_random:
+					self.best_WER_random = WER
+					torch.save(self.model.state_dict(), os.path.join(self.checkpoint_path, "best_model_random.pth"))
+			if sampling_method == "surprisal":
+				torch.save(self.model.state_dict(), os.path.join(self.checkpoint_path, "model_state_surprisal.pth"))
+				if WER < self.best_WER_surprisal:
+					self.best_WER_surprisal = WER
+					torch.save(self.model.state_dict(), os.path.join(self.checkpoint_path, "best_model_surprisal.pth"))
 		except:
 			print("Could not save model")
 
@@ -93,12 +105,14 @@ class Trainer:
 		self.model.train()
 		for g in self.optimizer.param_groups:
 			print("Current learning rate:", g['lr'])
-		#self.model.print_frozen()
+		FLOPs = []
 		for idx, batch in enumerate(tqdm(dataset.loader)):
 			x,y,T,U,idxs = batch
 			batch_size = len(x)
 			log_probs,p_big,I_big = self.model(x,y,T,U)
-			loss = -log_probs.mean() #+ 0.01 * torch.log(1 - p_big).mean()
+			batch_FLOPs = (1-I_big.mean())*self.model.FLOPs_small + I_big.mean()*self.model.FLOPs_big
+			FLOPs += [batch_FLOPs.item()] * batch_size
+			loss = -log_probs.mean()
 			if torch.isnan(loss):
 				print("nan detected!")
 				sys.exit()
@@ -123,24 +137,28 @@ class Trainer:
 
 		train_loss /= num_examples
 		train_WER /= num_examples
-		#self.model.unfreeze_one_layer()
-		results = {"loss" : train_loss, "WER" : train_WER, "set": "train"}
+		FLOPs = np.array(FLOPs)
+		FLOPs_mean = FLOPs.mean()
+		FLOPs_std = FLOPs.std()
+		results = {"loss" : train_loss, "WER" : train_WER, "FLOPs_mean" : FLOPs_mean, "FLOPs_std": FLOPs_std, "set": "train", "surprisal-triggered": config.sample_based_on_surprisal_during_training}
 		self.log(results)
 		self.epoch += 1
-		return train_WER, train_loss
+		return train_WER, train_loss, FLOPs_mean, FLOPs_std
 
 	def test(self, dataset, set):
 		test_WER = 0
 		test_loss = 0
 		num_examples = 0
 		self.model.eval()
-		#self.model.cpu(); self.model.is_cuda = False # beam search is memory-intensive; do on CPU for now
+		FLOPs = []
 		for idx, batch in enumerate(dataset.loader):
 			x,y,T,U,_ = batch
 			batch_size = len(x)
 			num_examples += batch_size
 			log_probs,p_big,I_big = self.model(x,y,T,U)
-			loss = -log_probs.mean() #+ torch.log(1 - p_big).mean()
+			loss = -log_probs.mean()
+			batch_FLOPs = (1-I_big.mean())*self.model.FLOPs_small + I_big.mean()*self.model.FLOPs_big
+			FLOPs += [batch_FLOPs.item()] * batch_size
 			test_loss += loss.item() * batch_size
 			WERs = []
 			guesses = self.model.infer(x, T)
@@ -161,6 +179,9 @@ class Trainer:
 		test_loss /= num_examples
 		self.scheduler.step()
 		test_WER /= num_examples
-		results = {"loss" : test_loss, "WER" : test_WER, "set": set}
+		FLOPs = np.array(FLOPs)
+		FLOPs_mean = FLOPs.mean()
+		FLOPs_std = FLOPs.std()
+		results = {"loss" : test_loss, "WER" : test_WER, "FLOPs_mean" : FLOPs_mean, "FLOPs_std": FLOPs_std, "set": set, "surprisal-triggered":config.sample_based_on_surprisal_during_testing}
 		self.log(results)
-		return test_WER, test_loss
+		return test_WER, test_loss, FLOPs_mean, FLOPs_std
