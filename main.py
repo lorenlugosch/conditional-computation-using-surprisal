@@ -74,11 +74,11 @@ if train:
 		print("valid WER: %.2f| valid loss: %.2f| valid FLOPs: %d (surprisal sampling)\n" % (valid_WER_surprisal * 100, valid_loss_surprisal, valid_FLOPs_mean_surprisal) )
 
 	trainer.load_best_model(sampling_method="random")
-	config.sample_based_on_surprisal_during_testing = False
+	model.sample_based_on_surprisal_during_testing = False
 	test_WER_random, test_loss_random, test_FLOPs_mean_random, test_FLOPs_std_random = trainer.test(test_dataset, set="test")
 
 	trainer.load_best_model(sampling_method="surprisal")
-	config.sample_based_on_surprisal_during_testing = True
+	model.sample_based_on_surprisal_during_testing = True
 	test_WER_surprisal, test_loss_surprisal, test_FLOPs_mean_surprisal, test_FLOPs_std_surprisal = trainer.test(test_dataset, set="test")
 	print("========= Test results =========")
 	print("test WER: %.2f| test loss: %.2f| test FLOPs: %d (random sampling)" % (test_WER_random * 100, test_loss_random, test_FLOPs_mean_random) )

@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 experiments_folder = "experiments"
-base_config_name = "timit" #"mini-librispeech"
+base_config_name = "mini-librispeech"
+#base_config_name = "timit"
 base_config_path = os.path.join(experiments_folder, base_config_name + ".cfg")
 
 class Experiment:
@@ -63,7 +64,7 @@ class Experiment:
 			# Run the experiment
 			call("python main.py --train --config_path=\""+ experiment_config_path +"\"", shell=True)
 
-	def get_results(self, column, set):
+	def get_results(self, column, set, surprisal_triggered):
 		#self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training))
 		if self.big_only:
 			self.name = self.base_config_name + "_big_only"
@@ -77,7 +78,10 @@ class Experiment:
 			experiment_name = self.name + "_seed=%d" % (seed)
 			experiment_results_path = os.path.join(experiments_folder, experiment_name, "training/log.csv")
 			df = pd.read_csv(experiment_results_path)
-			trials.append(df[column].loc[df["set"] == set].to_numpy())
+			if not self.big_only and not self.small_only:
+				trials.append(df.loc[df["set"] == set].loc[df["surprisal-triggered"] == surprisal_triggered][column].to_numpy())
+			else:
+				trials.append(df.loc[df["set"] == set][column].to_numpy())
 
 		trials = np.stack(trials)
 		return trials.mean(0), np.sqrt(trials.var(0))
@@ -85,7 +89,12 @@ class Experiment:
 experiments = []
 num_seeds = 5
 
-"""
+# other
+for use_AR_features in [True]:
+	for surprisal_triggered_sampling_during_training in [False, True]:
+		experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path)
+		experiments.append(experiment)
+
 use_AR_features = True; surprisal_triggered_sampling_during_training=False
 # big only
 experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, big_only=True)
@@ -93,12 +102,6 @@ experiments.append(experiment)
 # small only
 experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, small_only=True)
 experiments.append(experiment)
-"""
-# other
-for use_AR_features in [False, True]:
-	for surprisal_triggered_sampling_during_training in [False, True]:
-		experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path)
-		experiments.append(experiment)
 
 # run experiments
 for experiment in experiments:
@@ -126,11 +129,28 @@ plt.show()
 
 # print test results
 for experiment in experiments:
-	print("note! misleading, need to separate results")
-	test_loss_mean, test_loss_std = experiment.get_results(column="loss", set="test")
-	test_WER_mean, test_WER_std = experiment.get_results(column="WER", set="test")
-	test_FLOPs_mean, _ = experiment.get_results(column="FLOPs_mean", set="test")
-	print(experiment.name)
-	print("loss: %.2f $\pm$ %.2f" % (test_loss_mean, test_loss_std))
-	print("WER: %.2f\%% $\pm$ %.2f\%%" % (test_WER_mean*100, test_WER_std*100))
-	print("FLOPs: %d" % (test_FLOPs_mean))
+	if not experiment.big_only and not experiment.small_only:
+		test_loss_mean_random, test_loss_std_random = experiment.get_results(column="loss", set="test", surprisal_triggered=False)
+		test_WER_mean_random, test_WER_std_random = experiment.get_results(column="WER", set="test", surprisal_triggered=False)
+		test_FLOPs_mean_random, _ = experiment.get_results(column="FLOPs_mean", set="test", surprisal_triggered=False)
+		print(experiment.name + "_random")
+		print("loss: %.2f $\pm$ %.2f" % (test_loss_mean_random, test_loss_std_random))
+		print("WER: %.2f\%% $\pm$ %.2f\%%" % (test_WER_mean_random*100, test_WER_std_random*100))
+		print("FLOPs: %d" % (test_FLOPs_mean_random))
+
+		test_loss_mean_surprisal, test_loss_std_surprisal = experiment.get_results(column="loss", set="test", surprisal_triggered=True)
+		test_WER_mean_surprisal, test_WER_std_surprisal = experiment.get_results(column="WER", set="test", surprisal_triggered=True)
+		test_FLOPs_mean_surprisal, _ = experiment.get_results(column="FLOPs_mean", set="test", surprisal_triggered=True)
+		print(experiment.name + "_surprisal")
+		print("loss: %.2f $\pm$ %.2f" % (test_loss_mean_surprisal, test_loss_std_surprisal))
+		print("WER: %.2f\%% $\pm$ %.2f\%%" % (test_WER_mean_surprisal*100, test_WER_std_surprisal*100))
+		print("FLOPs: %d" % (test_FLOPs_mean_surprisal))
+
+	else:
+		test_loss_mean_random, test_loss_std_random = experiment.get_results(column="loss", set="test", surprisal_triggered=False)
+		test_WER_mean_random, test_WER_std_random = experiment.get_results(column="WER", set="test", surprisal_triggered=False)
+		test_FLOPs_mean_random, _ = experiment.get_results(column="FLOPs_mean", set="test", surprisal_triggered=False)
+		print(experiment.name)
+		print("loss: %.2f $\pm$ %.2f" % (test_loss_mean_random, test_loss_std_random))
+		print("WER: %.2f\%% $\pm$ %.2f\%%" % (test_WER_mean_random*100, test_WER_std_random*100))
+		print("FLOPs: %d" % (test_FLOPs_mean_random))
