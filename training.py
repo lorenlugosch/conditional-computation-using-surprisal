@@ -98,7 +98,7 @@ class Trainer:
 			prev = xx
 		return " ".join(x_out)
 
-	def train(self, dataset, print_interval=100):
+	def train(self, dataset, print_interval=100, log_results=True):
 		train_WER = 0
 		train_loss = 0
 		num_examples = 0
@@ -141,11 +141,11 @@ class Trainer:
 		FLOPs_mean = FLOPs.mean()
 		FLOPs_std = FLOPs.std()
 		results = {"loss" : train_loss, "WER" : train_WER, "FLOPs_mean" : FLOPs_mean, "FLOPs_std": FLOPs_std, "set": "train", "surprisal-triggered": self.model.sample_based_on_surprisal_during_training}
-		self.log(results)
+		if log_results: self.log(results)
 		self.epoch += 1
 		return train_WER, train_loss, FLOPs_mean, FLOPs_std
 
-	def test(self, dataset, set):
+	def test(self, dataset, set, log_results=True):
 		test_WER = 0
 		test_loss = 0
 		num_examples = 0
@@ -183,5 +183,5 @@ class Trainer:
 		FLOPs_mean = FLOPs.mean()
 		FLOPs_std = FLOPs.std()
 		results = {"loss" : test_loss, "WER" : test_WER, "FLOPs_mean" : FLOPs_mean, "FLOPs_std": FLOPs_std, "set": set, "surprisal-triggered":self.model.sample_based_on_surprisal_during_testing}
-		self.log(results)
+		if log_results: self.log(results)
 		return test_WER, test_loss, FLOPs_mean, FLOPs_std

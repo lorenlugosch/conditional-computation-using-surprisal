@@ -8,11 +8,9 @@ import argparse
 # Get args
 parser = argparse.ArgumentParser()
 parser.add_argument('--train', action='store_true', help='run training')
-parser.add_argument('--restart', action='store_true', help='load checkpoint from a previous run')
 parser.add_argument('--config_path', type=str, help='path to config file with hyperparameters, etc.')
 args = parser.parse_args()
 train = args.train
-restart = args.restart
 config_path = args.config_path
 
 # Read config file
@@ -27,7 +25,6 @@ print(model)
 train_dataset, valid_dataset, test_dataset = get_ASR_datasets(config)
 
 trainer = Trainer(model=model, config=config)
-if restart: trainer.load_checkpoint()
 
 # just debuggin'
 if not train:
