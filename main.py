@@ -23,32 +23,7 @@ print(model)
 
 # Generate datasets
 train_dataset, valid_dataset, test_dataset = get_ASR_datasets(config)
-
 trainer = Trainer(model=model, config=config)
-
-# just debuggin'
-if not train:
-	from data import CollateWavsASR
-	import matplotlib.pyplot as plt
-	c = CollateWavsASR()
-	indices = [100,1]
-	b = [ train_dataset.__getitem__(idx) for idx in indices]
-	batch = c.__call__(b)
-	x,y,T,U,idxs = batch
-	model.eval()
-	encoded, predicted, diff = model.autoregressive_model(x,T)
-	fbank = model.autoregressive_model.compute_fbank((x,T))
-	loss, p_big, I_big = model(x,y,T,U)
-	posteriors = model.get_posteriors(x,T)
-	p_big = p_big.cpu()
-	print(p_big.shape)
-	"""
-	plt.subplot(4,1,1); plt.imshow(predicted[0].cpu().detach().transpose(0,1), aspect="auto"); 
-	plt.subplot(4,1,2); plt.imshow(fbank[0].cpu().detach().transpose(0,1), aspect="auto"); 
-	plt.subplot(4,1,3); plt.plot(p_big[0].detach()); plt.xlim(0,predicted.shape[1]); 
-	plt.subplot(4,1,4); plt.imshow(posteriors[0].cpu().detach().transpose(0,1), aspect="auto"); 
-	plt.show()
-	"""
 
 if train:
 	print("Training the controller...")

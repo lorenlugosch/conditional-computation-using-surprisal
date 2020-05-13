@@ -143,7 +143,7 @@ class CCModel(torch.nn.Module):
 		out = torch.nn.functional.softmax(out, dim=2)
 		beam_result, beam_scores, timesteps, out_seq_len = self.decoder.decode(out)
 		decoded = [beam_result[i][0][:out_seq_len[i][0]].tolist() for i in range(len(out))]
-		return decoded
+		return decoded, p_big, I_big
 
 	def compute_p_big(self, x, T):
 		if next(self.parameters()).is_cuda:
