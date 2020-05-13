@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 experiments_folder = "experiments"
-base_config_name = "mini-librispeech"
-#base_config_name = "timit"
+#base_config_name = "mini-librispeech"
+base_config_name = "timit"
 base_config_path = os.path.join(experiments_folder, base_config_name + ".cfg")
 
 class Experiment:
@@ -78,10 +78,7 @@ class Experiment:
 			experiment_name = self.name + "_seed=%d" % (seed)
 			experiment_results_path = os.path.join(experiments_folder, experiment_name, "training/log.csv")
 			df = pd.read_csv(experiment_results_path)
-			if not self.big_only and not self.small_only:
-				trials.append(df.loc[df["set"] == set].loc[df["surprisal-triggered"] == surprisal_triggered][column].to_numpy())
-			else:
-				trials.append(df.loc[df["set"] == set][column].to_numpy())
+			trials.append(df.loc[df["set"] == set].loc[df["surprisal-triggered"] == surprisal_triggered][column].to_numpy())
 
 		trials = np.stack(trials)
 		return trials.mean(0), np.sqrt(trials.var(0))
@@ -95,7 +92,6 @@ for use_AR_features in [True]:
 		experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path)
 		experiments.append(experiment)
 
-"""
 use_AR_features = True; surprisal_triggered_sampling_during_training=False
 # big only
 experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, big_only=True)
@@ -103,14 +99,11 @@ experiments.append(experiment)
 # small only
 experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, small_only=True)
 experiments.append(experiment)
-"""
-"""
 
 # run experiments
 for experiment in experiments:
 	experiment.run()
 
-"""
 # plot results
 """
 for experiment in experiments:
@@ -132,17 +125,7 @@ plt.legend()
 plt.title("Validation PER (TIMIT)")
 plt.show()
 """
-# create .dat files
-epochs = np.arange(1, 51, 5)
-for experiment in experiments:
-	for surprisal_triggered_during_testing in [False, True]:
-		valid_loss_mean, valid_loss_std = experiment.get_results(column="WER", set="valid", surprisal_triggered=surprisal_triggered_during_testing)
-		with open(experiment.name + "_" + str(int(surprisal_triggered_during_testing)) + ".dat", "w") as f:
-			f.write("x y err\n")
-			for i,epoch in enumerate(epochs):
-				f.write("%d %f %f\n" % (epoch, valid_loss_mean[i], valid_loss_std[i]))
 
-sys.exit()
 
 # print test results
 for experiment in experiments:
