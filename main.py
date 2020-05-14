@@ -25,6 +25,8 @@ print(model)
 train_dataset, valid_dataset, test_dataset = get_ASR_datasets(config)
 trainer = Trainer(model=model, config=config)
 
+print("test!")
+
 if train:
 	print("Training the controller...")
 	trainer.train_controller(train_dataset)
