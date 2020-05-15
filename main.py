@@ -25,35 +25,18 @@ print(model)
 train_dataset, valid_dataset, test_dataset = get_ASR_datasets(config)
 trainer = Trainer(model=model, config=config)
 
-print("test!")
-
 if train:
-	print("Training the controller...")
-	trainer.train_controller(train_dataset)
-	print("Done.")
 	for epoch in range(config.num_epochs):
 		print("========= Epoch %d of %d =========" % (epoch+1, config.num_epochs))
 		train_WER, train_loss, train_FLOPs_mean, train_FLOPs_std = trainer.train(train_dataset)
 		if epoch % config.validation_period == 0:
-			model.sample_based_on_surprisal_during_testing = False
-			valid_WER_random, valid_loss_random, valid_FLOPs_mean_random, valid_FLOPs_std_random = trainer.test(valid_dataset, set="valid")
-			trainer.save_checkpoint(WER=valid_WER_random, sampling_method="random")
-
-			model.sample_based_on_surprisal_during_testing = True
-			valid_WER_surprisal, valid_loss_surprisal, valid_FLOPs_mean_surprisal, valid_FLOPs_std_surprisal = trainer.test(valid_dataset, set="valid")
-			trainer.save_checkpoint(WER=valid_WER_surprisal, sampling_method="surprisal")
+			valid_WER, valid_loss, valid_FLOPs_mean, valid_FLOPs_std = trainer.test(valid_dataset, set="valid")
+			trainer.save_checkpoint(WER=valid_WER)
 		print("========= Results: epoch %d of %d =========" % (epoch+1, config.num_epochs))
 		print("train WER: %.2f| train loss: %.2f| train FLOPs: %d" % (train_WER * 100, train_loss, train_FLOPs_mean))
-		print("valid WER: %.2f| valid loss: %.2f| valid FLOPs: %d (random sampling)" % (valid_WER_random * 100, valid_loss_random, valid_FLOPs_mean_random) )
-		print("valid WER: %.2f| valid loss: %.2f| valid FLOPs: %d (surprisal sampling)\n" % (valid_WER_surprisal * 100, valid_loss_surprisal, valid_FLOPs_mean_surprisal) )
+		print("valid WER: %.2f| valid loss: %.2f| valid FLOPs: %d" % (valid_WER * 100, valid_loss, valid_FLOPs_mean) )
 
-	trainer.load_best_model(sampling_method="random")
-	model.sample_based_on_surprisal_during_testing = False
-	test_WER_random, test_loss_random, test_FLOPs_mean_random, test_FLOPs_std_random = trainer.test(test_dataset, set="test")
-
-	trainer.load_best_model(sampling_method="surprisal")
-	model.sample_based_on_surprisal_during_testing = True
-	test_WER_surprisal, test_loss_surprisal, test_FLOPs_mean_surprisal, test_FLOPs_std_surprisal = trainer.test(test_dataset, set="test")
+	trainer.load_best_model()
+	test_WER, test_loss, test_FLOPs_mean, test_FLOPs_std = trainer.test(test_dataset, set="test")
 	print("========= Test results =========")
-	print("test WER: %.2f| test loss: %.2f| test FLOPs: %d (random sampling)" % (test_WER_random * 100, test_loss_random, test_FLOPs_mean_random) )
-	print("test WER: %.2f| test loss: %.2f| test FLOPs: %d (surprisal sampling)\n" % (test_WER_surprisal * 100, test_loss_surprisal, test_FLOPs_mean_surprisal) )
+	print("test WER: %.2f| test loss: %.2f| test FLOPs: %d" % (test_WER * 100, test_loss, test_FLOPs_mean) )

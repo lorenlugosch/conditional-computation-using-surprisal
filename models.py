@@ -16,9 +16,6 @@ class CCModel(torch.nn.Module):
 		super(CCModel, self).__init__()
 		self.blank_index = config.num_tokens
 		self.num_outputs = config.num_tokens + 1
-		self.sample_based_on_surprisal_during_training = config.sample_based_on_surprisal_during_training
-		self.probability_of_sampling_big_during_training = config.probability_of_sampling_big_during_training
-		self.probability_of_sampling_big_during_testing = config.probability_of_sampling_big_during_testing
 
 		self.autoregressive_model = AutoregressiveModel(config)
 		if config.frame_skipping:
@@ -70,8 +67,8 @@ class CCModel(torch.nn.Module):
 		print("Number of params in postnet:", count_params(self.postnet))
 
 		# for computing the cost of running big and small models:
-		self.FLOPs_big = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.big_model) + count_params(self.postnet)
-		self.FLOPs_small = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.small_model) + count_params(self.postnet)
+		self.FLOPs_big = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.big_model) + count_params(self.postnet) - count_params(self.autoregressive_model.regressor) + count_params(self.controller)
+		self.FLOPs_small = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.small_model) + count_params(self.postnet) - count_params(self.autoregressive_model.regressor) + count_params(self.controller)
 
 		# beam search
 		labels = ["a" for _ in range(self.num_outputs)] # doesn't matter, just need 1-char labels
@@ -91,20 +88,10 @@ class CCModel(torch.nn.Module):
 			out_big = self.big_model(h[:,1:,:])
 
 		# sample from big or small models
-		if self.training:
-			if self.sample_based_on_surprisal_during_training:
-				p_big = self.controller(diff)
-			else:
-				p_big = self.probability_of_sampling_big_during_training*torch.ones(out_small.shape[0], out_small.shape[1], 1).to(diff.device)
-		else:
-			if self.sample_based_on_surprisal_during_testing:
-				p_big = self.controller(diff)
-			else:
-				p_big = self.probability_of_sampling_big_during_testing*torch.ones(out_small.shape[0], out_small.shape[1], 1).to(diff.device)
-		I_big = torch.distributions.binomial.Binomial(1, p_big).sample()
+		I_big = self.controller(h[:,1:,:])
 		main_out = (1 - I_big) * out_small + I_big * out_big
 		out = self.postnet(main_out)
-		return out, p_big, I_big
+		return out, I_big
 
 	def forward(self, x, y, T, U):
 		"""
@@ -116,7 +103,7 @@ class CCModel(torch.nn.Module):
 			x = x.cuda()
 			y = y.cuda()
 
-		out, p_big, I_big = self.compute(x, T)
+		out, I_big = self.compute(x, T)
 
 		# compute the log probs
 		downsampling_factor = max(T) / out.shape[1]
@@ -130,40 +117,47 @@ class CCModel(torch.nn.Module):
 								blank=self.blank_index,
 								)
 
-		return log_probs, p_big, I_big
+		return log_probs, I_big
 
 	def infer(self, x, T=None):
 		# move inputs to GPU
 		if next(self.parameters()).is_cuda:
 			x = x.cuda()
 
-		out, p_big, I_big = self.compute(x, T)
+		out, I_big = self.compute(x, T)
 
 		# run a beam search
 		out = torch.nn.functional.softmax(out, dim=2)
 		beam_result, beam_scores, timesteps, out_seq_len = self.decoder.decode(out)
 		decoded = [beam_result[i][0][:out_seq_len[i][0]].tolist() for i in range(len(out))]
-		return decoded, p_big, I_big
-
-	def compute_p_big(self, x, T):
-		if next(self.parameters()).is_cuda:
-			x = x.cuda()
-
-		h, x_hat, diff = self.autoregressive_model(x, T)
-		p_big = self.controller(diff)
-		return p_big
+		return decoded, I_big
 
 class Controller(torch.nn.Module):
 	def __init__(self):
 		super(Controller, self).__init__()
-		self.bias = torch.nn.Parameter(torch.tensor([-1.0]), requires_grad=False)
-		self.weight = torch.nn.Parameter(torch.tensor([0.1]), requires_grad=False)
+		self.linear1 = torch.nn.Linear(512, 80)
+		self.relu = torch.nn.LeakyReLU(0.125)
+		self.linear2 = torch.nn.Linear(80, 1)
+		self.threshold = Threshold()
 
-	def forward(self, diff):
-		error = (diff ** 2).sum(2).unsqueeze(2)
-		p_big = torch.sigmoid(error*self.weight + self.bias)
+	def forward(self, h):
+		out = self.linear1(h)
+		out = self.relu(out)
+		out = self.linear2(out)
+		I_big = self.threshold.apply(out)
+		return I_big
 
-		return p_big
+# Identity straight-through estimator, modified from https://discuss.pytorch.org/t/custom-binarization-layer-with-straight-through-estimator-gives-error/4539/3
+# https://arxiv.org/pdf/1308.3432.pdf
+# https://discuss.pytorch.org/t/how-to-overwrite-a-backwards-pass/65845
+class Threshold(torch.autograd.Function):
+	@staticmethod
+	def forward(self, input):
+		return (input > 0).float()
+
+	@staticmethod
+	def backward(self, grad_output):
+		return grad_output
 
 class Conv(torch.nn.Module):
 	def __init__(self, in_dim, out_dim, filter_length, stride):
