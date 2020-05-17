@@ -10,7 +10,7 @@ base_config_name = "timit"
 base_config_path = os.path.join(experiments_folder, base_config_name + ".cfg")
 
 class Experiment:
-	def __init__(self, use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, big_only=False, small_only=False):
+	def __init__(self, use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize, big_only=False, small_only=False):
 		self.use_AR_features = use_AR_features
 		self.surprisal_triggered_sampling_during_training = surprisal_triggered_sampling_during_training
 		self.num_seeds = num_seeds
@@ -62,7 +62,9 @@ class Experiment:
 				f.writelines(lines)
 
 			# Run the experiment
-			call("python main.py --train --config_path=\""+ experiment_config_path +"\"", shell=True)
+			cmd = "python main.py --train --config_path=\""+ experiment_config_path +"\""
+			if randomize: cmd += " --randomize"
+			call(cmd, shell=True)
 
 	def get_results(self, column, set):
 		#self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training))
@@ -87,16 +89,15 @@ experiments = []
 num_seeds = 5
 
 # other
-for use_AR_features in [True]:
-	for surprisal_triggered_sampling_during_training in [True]:
-		experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path)
-		experiments.append(experiment)
+use_AR_features = True
+surprisal_triggered_sampling_during_training = True
+for randomize in [True]:
+	experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize)
+	experiments.append(experiment)
 
-"""
 # run experiments
 for experiment in experiments:
 	experiment.run()
-"""
 
 # print test results
 for experiment in experiments:

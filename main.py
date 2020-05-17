@@ -9,9 +9,11 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('--train', action='store_true', help='run training')
 parser.add_argument('--config_path', type=str, help='path to config file with hyperparameters, etc.')
+parser.add_argument('--randomize', action='store_true', help='initialize using random controller')
 args = parser.parse_args()
 train = args.train
 config_path = args.config_path
+randomize = args.randomize
 
 # Read config file
 config = read_config(config_path)
@@ -20,6 +22,10 @@ torch.manual_seed(config.seed); np.random.seed(config.seed)
 # Initialize model
 model = CCModel(config=config)
 print(model)
+if randomize:
+	model.randomize = True
+else:
+	model.randomize = False
 
 # Generate datasets
 train_dataset, valid_dataset, test_dataset = get_ASR_datasets(config)
@@ -28,6 +34,9 @@ trainer = Trainer(model=model, config=config)
 if train:
 	for epoch in range(config.num_epochs):
 		print("========= Epoch %d of %d =========" % (epoch+1, config.num_epochs))
+		if epoch > config.num_epochs / 2 and model.randomize:
+			print("switching from random to learned controller")
+			model.randomize = False
 		train_WER, train_loss, train_FLOPs_mean, train_FLOPs_std = trainer.train(train_dataset)
 		if epoch % config.validation_period == 0:
 			valid_WER, valid_loss, valid_FLOPs_mean, valid_FLOPs_std = trainer.test(valid_dataset, set="valid")

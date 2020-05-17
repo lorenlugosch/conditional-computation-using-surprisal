@@ -88,7 +88,11 @@ class CCModel(torch.nn.Module):
 			out_big = self.big_model(h[:,1:,:])
 
 		# sample from big or small models
-		I_big = self.controller(h[:,1:,:])
+		if self.randomize:
+			p_big = 0.5 * torch.ones(out_small.shape[0], out_small.shape[1], 1).to(diff.device)
+			I_big = torch.distributions.binomial.Binomial(1, p_big).sample()
+		else:
+			I_big = self.controller(h[:,1:,:])
 		main_out = (1 - I_big) * out_small + I_big * out_big
 		out = self.postnet(main_out)
 		return out, I_big
