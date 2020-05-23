@@ -23,6 +23,8 @@ Mini-LibriSpeech can be downloaded for free [here](https://www.openslr.org/31/).
 
 Execute `python run_experiments.py`. (By default, this will run the ablation experiment on Mini-LibriSpeech. Change the base path in `run_experiments.py` if you want to use TIMIT.)
 
+To run the baseline with a learned controller, switch to the `learnedcontroller` branch and execute `python run_experiments.py`.
+
 ## Training a single model
 
 Execute `python main.py --train --config_path="<path to your .cfg>"` (e.g., `experiments/mini-librispeech.cfg`)
