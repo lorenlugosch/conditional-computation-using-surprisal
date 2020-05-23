@@ -72,7 +72,7 @@ class Trainer:
 		for idx, batch in enumerate(tqdm(dataset.loader)):
 			x,_,T,_,idxs = batch
 			p_big = self.model.compute_p_big(x,T)
-			loss = 0.5*(p_big.mean() - 0.5)**2 + 0.5*(p_big.var() - 0.04)**2
+			loss = 0.5*(p_big.mean() - self.config.controller_mean)**2 + 0.5*(p_big.var() - self.config.controller_var)**2
 			print("loss:", loss.item())
 			print("p_big.mean():", p_big.mean())
 			print("p_big.var():", p_big.var())

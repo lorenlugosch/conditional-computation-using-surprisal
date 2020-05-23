@@ -35,10 +35,11 @@ def read_config(config_file):
 	config.num_layers=int(parser.get("model", "num_layers"))
 	config.num_hidden=int(parser.get("model", "num_hidden"))
 	config.num_mel_bins=int(parser.get("model", "num_mel_bins"))
-	config.small_model_dim=int(parser.get("model", "small_model_dim"))
 	config.big_model_dim=int(parser.get("model", "big_model_dim"))
 	config.use_AR_features=parser.get("model", "use_AR_features")=="True"
 	config.frame_skipping=parser.get("model", "frame_skipping")=="True"
+	config.controller_mean=float(parser.get("model", "controller_mean"))
+	config.controller_var=float(parser.get("model", "controller_var"))
 	#config.tokenizer_training_text_path=parser.get("model", "tokenizer_training_text_path")
 
 	#[training]

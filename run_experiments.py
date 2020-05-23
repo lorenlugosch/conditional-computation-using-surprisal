@@ -6,7 +6,8 @@ import numpy as np
 
 experiments_folder = "experiments"
 #base_config_name = "mini-librispeech"
-base_config_name = "timit"
+#base_config_name = "timit"
+base_config_name = "timit_0.65"
 base_config_path = os.path.join(experiments_folder, base_config_name + ".cfg")
 
 class Experiment:
@@ -85,13 +86,11 @@ class Experiment:
 
 experiments = []
 num_seeds = 5
-
 # other
 for use_AR_features in [True]:
 	for surprisal_triggered_sampling_during_training in [False, True]:
 		experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path)
 		experiments.append(experiment)
-
 use_AR_features = True; surprisal_triggered_sampling_during_training=False
 # big only
 experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, big_only=True)
@@ -103,9 +102,8 @@ experiments.append(experiment)
 # run experiments
 for experiment in experiments:
 	experiment.run()
-
-# plot results
 """
+# plot results
 for experiment in experiments:
 	for surprisal_triggered_during_testing in [False, True]:
 		if experiment.big_only or experiment.small_only: continue
@@ -126,6 +124,17 @@ plt.title("Validation PER (TIMIT)")
 plt.show()
 """
 
+# create .dat
+for experiment in experiments:
+	for surprisal_triggered_during_testing in [False, True]:
+		if experiment.big_only or experiment.small_only: continue
+		valid_loss_mean, valid_loss_std = experiment.get_results(column="WER", set="valid", surprisal_triggered=surprisal_triggered_during_testing)
+		with open(experiment.name + str(surprisal_triggered_during_testing) + ".dat", "w") as f:
+			f.write("x y err\n")
+			interval = 5 if base_config_name == "mini-librispeech" else 1
+			epochs = np.arange(1, 51, interval)
+			for i, epoch in enumerate(epochs):
+				f.write(str(epoch) + " " + str(valid_loss_mean[i] * 100) + " " + str(valid_loss_std[i] * 100) + "\n")
 
 # print test results
 for experiment in experiments:

@@ -39,6 +39,7 @@ class CCModel(torch.nn.Module):
 		self.main_out_dim = self.prenet_out_dim
 		self.postnet_out_dim = self.prenet_out_dim
 
+		"""
 		self.prenet = torch.nn.Sequential(
 				torch.nn.GRU(input_size=self.encoder_out_dim, hidden_size=self.prenet_out_dim // 2, batch_first=True, bidirectional=True),
 				RNNOutputSelect(),
@@ -68,7 +69,23 @@ class CCModel(torch.nn.Module):
 				torch.nn.LogSoftmax(dim=2)
 		)
 		print("Number of params in postnet:", count_params(self.postnet))
-
+		"""
+		self.prenet = torch.nn.Sequential(
+		)
+		self.small_model = torch.nn.Sequential(
+			torch.nn.Dropout(0.5),
+			Conv(in_dim=self.encoder_out_dim, out_dim=self.num_outputs, filter_length=11, stride=1),
+			torch.nn.LogSoftmax(dim=2)
+		)
+		self.big_model = torch.nn.Sequential(
+			torch.nn.Dropout(0.5),
+			Conv(in_dim=self.encoder_out_dim, out_dim=512, filter_length=11, stride=1),
+			torch.nn.LeakyReLU(0.125),
+			torch.nn.Linear(512, self.num_outputs),
+			torch.nn.LogSoftmax(dim=2)
+		)
+		self.postnet = torch.nn.Sequential(
+		)
 		# for computing the cost of running big and small models:
 		self.FLOPs_big = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.big_model) + count_params(self.postnet)
 		self.FLOPs_small = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.small_model) + count_params(self.postnet)
@@ -130,7 +147,11 @@ class CCModel(torch.nn.Module):
 								blank=self.blank_index,
 								)
 
-		return log_probs, p_big, I_big
+		T = torch.tensor(T); max_T = max(T)
+		#return log_probs, p_big, I_big
+		packed_p_big = torch.cat([p_big[i, :T[i]] for i in range(len(T))])
+		packed_I_big = torch.cat([I_big[i, :T[i]] for i in range(len(T))])
+		return log_probs, packed_p_big, packed_I_big
 
 	def infer(self, x, T=None):
 		# move inputs to GPU
@@ -143,15 +164,23 @@ class CCModel(torch.nn.Module):
 		out = torch.nn.functional.softmax(out, dim=2)
 		beam_result, beam_scores, timesteps, out_seq_len = self.decoder.decode(out)
 		decoded = [beam_result[i][0][:out_seq_len[i][0]].tolist() for i in range(len(out))]
-		return decoded, p_big, I_big
+		T = torch.tensor(T); max_T = max(T)
+		#return decoded, p_big, I_big
+		packed_p_big = torch.cat([p_big[i, :T[i]] for i in range(len(T))])
+		packed_I_big = torch.cat([I_big[i, :T[i]] for i in range(len(T))])
+		return decoded, packed_p_big, packed_I_big
 
 	def compute_p_big(self, x, T):
 		if next(self.parameters()).is_cuda:
 			x = x.cuda()
 
 		h, x_hat, diff = self.autoregressive_model(x, T)
+		downsampling_factor = max(T) / diff.shape[1]
+		T = [round(t / downsampling_factor) for t in T]
+		T = torch.tensor(T); max_T = max(T)
 		p_big = self.controller(diff)
-		return p_big
+		packed_p_big = torch.cat([p_big[i, :T[i]] for i in range(len(T))])
+		return packed_p_big
 
 class Controller(torch.nn.Module):
 	def __init__(self):
