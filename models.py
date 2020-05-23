@@ -99,7 +99,7 @@ class CCModel(torch.nn.Module):
 
 	def forward(self, x, y, T, U):
 		"""
-		returns log probs, p_big, I_big for each example
+		returns log probs, I_big for each example
 		"""
 
 		# move inputs to GPU
@@ -121,7 +121,9 @@ class CCModel(torch.nn.Module):
 								blank=self.blank_index,
 								)
 
-		return log_probs, I_big
+		#return log_probs, I_big
+		packed_I_big = torch.cat([I_big[i, :T[i]] for i in range(len(T))])
+		return log_probs, packed_I_big
 
 	def infer(self, x, T=None):
 		# move inputs to GPU
@@ -134,7 +136,9 @@ class CCModel(torch.nn.Module):
 		out = torch.nn.functional.softmax(out, dim=2)
 		beam_result, beam_scores, timesteps, out_seq_len = self.decoder.decode(out)
 		decoded = [beam_result[i][0][:out_seq_len[i][0]].tolist() for i in range(len(out))]
-		return decoded, I_big
+		#return decoded, I_big
+		packed_I_big = torch.cat([I_big[i, :T[i]] for i in range(len(T))])
+		return decoded, packed_I_big
 
 class Controller(torch.nn.Module):
 	def __init__(self):
