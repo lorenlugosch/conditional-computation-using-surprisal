@@ -1,6 +1,6 @@
 # conditional-computation-using-surprisal
 
-This repo contains the experiment code for our paper "Surprisal-Triggered Conditional Computation with Neural Networks".
+This repo contains the experiment code for our paper, "Surprisal-Triggered Conditional Computation with Neural Networks".
 
 ## Requirements
 
@@ -8,7 +8,7 @@ This repo contains the experiment code for our paper "Surprisal-Triggered Condit
 - torchaudio
 - ctcdecode
 - tqdm
-- The `autoregressive-models` repo (get [here](https://github.com/lorenlugosch/autoregressive-models) and clone into a repo adjacent to this one)
+- The `autoregressive-models` repo (get [here](https://github.com/lorenlugosch/autoregressive-models) and clone into a folder adjacent to this one)
 
 ## Datasets
 
