@@ -19,6 +19,7 @@ class Experiment:
 		self.base_config_path = base_config_path
 		self.big_only = big_only
 		self.small_only = small_only
+		self.randomize = randomize
 		if self.big_only:
 			self.surprisal_triggered_sampling_during_training = False
 			self.probability_of_sampling_big_during_training=1.0
@@ -37,7 +38,7 @@ class Experiment:
 		if self.small_only:
 			self.name = self.base_config_name + "_small_only"
 		if not self.big_only and not self.small_only:
-			self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training))
+			self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training)) + str(self.randomize)
 		for seed in range(1,self.num_seeds+1):
 			# Create config file for this experiment
 			experiment_name = self.name + "_seed=%d" % (seed)
@@ -63,7 +64,7 @@ class Experiment:
 
 			# Run the experiment
 			cmd = "python main.py --train --config_path=\""+ experiment_config_path +"\""
-			if randomize: cmd += " --randomize"
+			if self.randomize: cmd += " --randomize"
 			call(cmd, shell=True)
 
 	def get_results(self, column, set):
@@ -73,7 +74,7 @@ class Experiment:
 		if self.small_only:
 			self.name = self.base_config_name + "_small_only"
 		if not self.big_only and not self.small_only:
-			self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training))
+			self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training)) + str(self.randomize)
 
 		trials = []
 		for seed in range(1,self.num_seeds+1):
@@ -91,7 +92,7 @@ num_seeds = 5
 # other
 use_AR_features = True
 surprisal_triggered_sampling_during_training = True
-for randomize in [True]:
+for randomize in [False, True]:
 	experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize)
 	experiments.append(experiment)
 
