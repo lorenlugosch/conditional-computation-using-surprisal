@@ -102,27 +102,6 @@ experiments.append(experiment)
 # run experiments
 for experiment in experiments:
 	experiment.run()
-"""
-# plot results
-for experiment in experiments:
-	for surprisal_triggered_during_testing in [False, True]:
-		if experiment.big_only or experiment.small_only: continue
-		valid_loss_mean, valid_loss_std = experiment.get_results(column="WER", set="valid", surprisal_triggered=surprisal_triggered_during_testing)
-		num_epochs = len(valid_loss_mean)
-		color = "blue" if surprisal_triggered_during_testing and experiment.surprisal_triggered_sampling_during_training else "red"
-		linestyle = "-" #if experiment.surprisal_triggered_sampling_during_training else "--"
-		s = "surprisal (train)="
-		s += str(experiment.surprisal_triggered_sampling_during_training)
-		s += ", surprisal (test)="
-		s += str(surprisal_triggered_during_testing)
-		plt.plot(np.arange(0,num_epochs), valid_loss_mean, linestyle=linestyle, color=color, label=s)
-		upper = valid_loss_mean + valid_loss_std
-		lower = valid_loss_mean - valid_loss_std
-		plt.fill_between(np.arange(0,num_epochs), lower, upper, facecolor=color, alpha=0.5)
-plt.legend()
-plt.title("Validation PER (TIMIT)")
-plt.show()
-"""
 
 # create .dat
 for experiment in experiments:

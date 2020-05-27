@@ -39,19 +39,16 @@ class CCModel(torch.nn.Module):
 		self.main_out_dim = self.prenet_out_dim
 		self.postnet_out_dim = self.prenet_out_dim
 
-		"""
 		self.prenet = torch.nn.Sequential(
 				torch.nn.GRU(input_size=self.encoder_out_dim, hidden_size=self.prenet_out_dim // 2, batch_first=True, bidirectional=True),
 				RNNOutputSelect(),
 				torch.nn.Dropout(0.5),
 		)
-		print("Number of params in prenet:", count_params(self.prenet))
 
 		self.small_model = torch.nn.Sequential(
 				torch.nn.Linear(self.prenet_out_dim, self.main_out_dim),
 				torch.nn.LeakyReLU(0.125),
 		)
-		print("Number of params in small model:", count_params(self.small_model))
 
 		self.big_model = torch.nn.Sequential(
 				torch.nn.Linear(self.prenet_out_dim, config.big_model_dim),
@@ -59,7 +56,6 @@ class CCModel(torch.nn.Module):
 				torch.nn.Linear(config.big_model_dim, self.main_out_dim),
 				torch.nn.LeakyReLU(0.125),
 		)
-		print("Number of params in big model:", count_params(self.big_model))
 
 		self.postnet = torch.nn.Sequential(
 				torch.nn.GRU(input_size=self.main_out_dim, hidden_size=self.postnet_out_dim // 2, batch_first=True, bidirectional=True),
@@ -68,24 +64,7 @@ class CCModel(torch.nn.Module):
 				torch.nn.Linear(self.postnet_out_dim, self.num_outputs),
 				torch.nn.LogSoftmax(dim=2)
 		)
-		print("Number of params in postnet:", count_params(self.postnet))
-		"""
-		self.prenet = torch.nn.Sequential(
-		)
-		self.small_model = torch.nn.Sequential(
-			torch.nn.Dropout(0.5),
-			Conv(in_dim=self.encoder_out_dim, out_dim=self.num_outputs, filter_length=11, stride=1),
-			torch.nn.LogSoftmax(dim=2)
-		)
-		self.big_model = torch.nn.Sequential(
-			torch.nn.Dropout(0.5),
-			Conv(in_dim=self.encoder_out_dim, out_dim=512, filter_length=11, stride=1),
-			torch.nn.LeakyReLU(0.125),
-			torch.nn.Linear(512, self.num_outputs),
-			torch.nn.LogSoftmax(dim=2)
-		)
-		self.postnet = torch.nn.Sequential(
-		)
+
 		# for computing the cost of running big and small models:
 		self.FLOPs_big = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.big_model) + count_params(self.postnet)
 		self.FLOPs_small = count_params(self.autoregressive_model) + count_params(self.prenet) + count_params(self.small_model) + count_params(self.postnet)
