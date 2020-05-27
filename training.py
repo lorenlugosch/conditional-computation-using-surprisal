@@ -12,7 +12,7 @@ class Trainer:
 		self.lr = config.lr
 		self.lr_period = config.lr_period
 		self.gamma = config.gamma
-		self.lmbd = 0.0001 # this controls how much we penalize the use of the big model
+		self.lmbd = config.lmbd
 		self.checkpoint_path = os.path.join(self.config.folder, "training")
 		self.optimizer = torch.optim.Adam(model.parameters(), lr=self.lr)
 		self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=self.lr_period, gamma=self.gamma)

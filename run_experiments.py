@@ -10,7 +10,7 @@ base_config_name = "timit"
 base_config_path = os.path.join(experiments_folder, base_config_name + ".cfg")
 
 class Experiment:
-	def __init__(self, use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize, big_only=False, small_only=False):
+	def __init__(self, use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize, lmbd, big_only=False, small_only=False):
 		self.use_AR_features = use_AR_features
 		self.surprisal_triggered_sampling_during_training = surprisal_triggered_sampling_during_training
 		self.num_seeds = num_seeds
@@ -20,6 +20,7 @@ class Experiment:
 		self.big_only = big_only
 		self.small_only = small_only
 		self.randomize = randomize
+		self.lmbd = lmbd
 		if self.big_only:
 			self.surprisal_triggered_sampling_during_training = False
 			self.probability_of_sampling_big_during_training=1.0
@@ -38,7 +39,7 @@ class Experiment:
 		if self.small_only:
 			self.name = self.base_config_name + "_small_only"
 		if not self.big_only and not self.small_only:
-			self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training)) + str(self.randomize)
+			self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training)) + str(self.randomize) + str(self.lmbd)
 		for seed in range(1,self.num_seeds+1):
 			# Create config file for this experiment
 			experiment_name = self.name + "_seed=%d" % (seed)
@@ -58,6 +59,8 @@ class Experiment:
 			lines[probability_of_sampling_big_during_training_line] = "probability_of_sampling_big_during_training="+str(self.probability_of_sampling_big_during_training)+"\n"
 			probability_of_sampling_big_during_testing_line = ["probability_of_sampling_big_during_testing=" in line for line in lines].index(True)
 			lines[probability_of_sampling_big_during_testing_line] = "probability_of_sampling_big_during_testing="+str(self.probability_of_sampling_big_during_testing)+"\n"
+			lmbd_line = ["lmbd=" in line for line in lines].index(True)
+			lines[lmbd_line] = "lmbd="+ str(self.lmbd)
 
 			with open(experiment_config_path, "w") as f:
 				f.writelines(lines)
@@ -74,7 +77,7 @@ class Experiment:
 		if self.small_only:
 			self.name = self.base_config_name + "_small_only"
 		if not self.big_only and not self.small_only:
-			self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training)) + str(self.randomize)
+			self.name = self.base_config_name + "_%d_%d" % (int(self.use_AR_features), int(self.surprisal_triggered_sampling_during_training)) + str(self.randomize) + str(self.lmbd)
 
 		trials = []
 		for seed in range(1,self.num_seeds+1):
@@ -93,8 +96,9 @@ num_seeds = 5
 use_AR_features = True
 surprisal_triggered_sampling_during_training = True
 for randomize in [False, True]:
-	experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize)
-	experiments.append(experiment)
+	for lmbd in [0.1, 0.01, 0.001, 0.0001, 0.00001]:
+		experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize, lmbd)
+		experiments.append(experiment)
 
 # run experiments
 for experiment in experiments:
@@ -102,11 +106,10 @@ for experiment in experiments:
 
 # print test results
 for experiment in experiments:
-	if not experiment.big_only and not experiment.small_only:
-		test_loss_mean_random, test_loss_std_random = experiment.get_results(column="loss", set="test")
-		test_WER_mean_random, test_WER_std_random = experiment.get_results(column="WER", set="test")
-		test_FLOPs_mean_random, _ = experiment.get_results(column="FLOPs_mean", set="test")
-		print(experiment.name)
-		print("loss: %.2f $\pm$ %.2f" % (test_loss_mean_random, test_loss_std_random))
-		print("WER: %.2f\%% $\pm$ %.2f\%%" % (test_WER_mean_random*100, test_WER_std_random*100))
-		print("FLOPs: %d" % (test_FLOPs_mean_random))
+	test_loss_mean_random, test_loss_std_random = experiment.get_results(column="loss", set="test")
+	test_WER_mean_random, test_WER_std_random = experiment.get_results(column="WER", set="test")
+	test_FLOPs_mean_random, _ = experiment.get_results(column="FLOPs_mean", set="test")
+	print(experiment.name)
+	print("loss: %.2f $\pm$ %.2f" % (test_loss_mean_random, test_loss_std_random))
+	print("WER: %.2f\%% $\pm$ %.2f\%%" % (test_WER_mean_random*100, test_WER_std_random*100))
+	print("FLOPs: %d" % (test_FLOPs_mean_random))

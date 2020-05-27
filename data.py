@@ -53,6 +53,7 @@ def read_config(config_file):
 	# if sampling not based on surprisal:
 	config.probability_of_sampling_big_during_training=float(parser.get("training", "probability_of_sampling_big_during_training"))
 	config.probability_of_sampling_big_during_testing=float(parser.get("training", "probability_of_sampling_big_during_testing"))
+	config.lmbd=float(parser.get("training", "lmbd"))
 
 	#[inference]
 	config.beam_width=int(parser.get("inference", "beam_width"))
