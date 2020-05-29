@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 experiments_folder = "experiments"
-#base_config_name = "mini-librispeech"
-base_config_name = "timit"
+base_config_name = "mini-librispeech"
+#base_config_name = "timit"
 base_config_path = os.path.join(experiments_folder, base_config_name + ".cfg")
 
 class Experiment:
@@ -95,7 +95,7 @@ num_seeds = 5
 # other
 use_AR_features = True
 surprisal_triggered_sampling_during_training = True
-for randomize in [False, True]:
+for randomize in [False]:
 	for lmbd in [0.1, 0.01, 0.001, 0.0001, 0.00001]:
 		experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize, lmbd)
 		experiments.append(experiment)
