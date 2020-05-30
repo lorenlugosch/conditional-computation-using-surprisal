@@ -95,10 +95,9 @@ num_seeds = 5
 # other
 use_AR_features = True
 surprisal_triggered_sampling_during_training = True
-for randomize in [False]:
-	for lmbd in [0.1, 0.01, 0.001, 0.0001, 0.00001]:
-		experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, randomize, lmbd)
-		experiments.append(experiment)
+for lmbd in [0.1, 0.01, 0.001, 0.0001, 0.00001]:
+	experiment = Experiment(use_AR_features, surprisal_triggered_sampling_during_training, num_seeds, experiments_folder, base_config_name, base_config_path, False, lmbd)
+	experiments.append(experiment)
 
 # run experiments
 for experiment in experiments:
