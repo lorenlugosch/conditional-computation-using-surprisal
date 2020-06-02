@@ -8,7 +8,7 @@ This repo contains the experiment code for our paper, "Surprisal-Triggered Condi
 - torchaudio
 - ctcdecode
 - tqdm
-- The `autoregressive-models` repo (get [here](https://github.com/lorenlugosch/autoregressive-models) and clone into a folder adjacent to this one)
+- The `autoregressive-models` repo (get [here](https://github.com/lorenlugosch/autoregressive-models), clone into a folder adjacent to this one, and rename to `autoregressive_models` (needed for import to work))
 
 ## Datasets
 
