@@ -73,7 +73,7 @@ class CCModel(torch.nn.Module):
 		labels = ["a" for _ in range(self.num_outputs)] # doesn't matter, just need 1-char labels
 		self.decoder = ctcdecode.CTCBeamDecoder(labels, blank_id=self.blank_index, beam_width=config.beam_width)
 
-	def compute(self, x, T):
+	def compute(self, x, T, deterministic=False):
 		# run the neural networks
 		h, x_hat, diff = self.autoregressive_model(x, T)
 		if not self.use_AR_features: # use raw input features
@@ -97,12 +97,15 @@ class CCModel(torch.nn.Module):
 				p_big = self.controller(diff)
 			else:
 				p_big = self.probability_of_sampling_big_during_testing*torch.ones(out_small.shape[0], out_small.shape[1], 1).to(diff.device)
-		I_big = torch.distributions.binomial.Binomial(1, p_big).sample()
+		if deterministic:
+			I_big = (p_big > 0.5).float()
+		else:
+			I_big = torch.distributions.binomial.Binomial(1, p_big).sample()
 		main_out = (1 - I_big) * out_small + I_big * out_big
 		out = self.postnet(main_out)
 		return out, p_big, I_big
 
-	def forward(self, x, y, T, U):
+	def forward(self, x, y, T, U, deterministic):
 		"""
 		returns log probs, p_big, I_big for each example
 		"""
@@ -112,7 +115,7 @@ class CCModel(torch.nn.Module):
 			x = x.cuda()
 			y = y.cuda()
 
-		out, p_big, I_big = self.compute(x, T)
+		out, p_big, I_big = self.compute(x, T, deterministic)
 
 		# compute the log probs
 		downsampling_factor = max(T) / out.shape[1]
@@ -132,7 +135,7 @@ class CCModel(torch.nn.Module):
 		packed_I_big = torch.cat([I_big[i, :T[i]] for i in range(len(T))])
 		return log_probs, packed_p_big, packed_I_big
 
-	def infer(self, x, T=None):
+	def infer(self, x, deterministic, T=None):
 		# move inputs to GPU
 		if next(self.parameters()).is_cuda:
 			x = x.cuda()

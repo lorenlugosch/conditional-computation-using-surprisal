@@ -109,7 +109,7 @@ class Trainer:
 		for idx, batch in enumerate(tqdm(dataset.loader)):
 			x,y,T,U,idxs = batch
 			batch_size = len(x)
-			log_probs,p_big,I_big = self.model(x,y,T,U)
+			log_probs,p_big,I_big = self.model(x,y,T,U, self.config.deterministic_train)
 			batch_FLOPs = (1-I_big.mean())*self.model.FLOPs_small + I_big.mean()*self.model.FLOPs_big
 			FLOPs += [batch_FLOPs.item()] * batch_size
 			loss = -log_probs.mean()
@@ -124,7 +124,7 @@ class Trainer:
 			num_examples += batch_size
 			if idx % print_interval == 0:
 				print("loss: " + str(loss.cpu().data.numpy().item()))
-				guesses,_,_ = self.model.infer(x, T)
+				guesses,_,_ = self.model.infer(x, self.config.deterministic_train, T)
 				guess = guesses[0][:U[0]]
 				guess_decoded = self.remove_repeated_silence(dataset.tokenizer.DecodeIds(guess))
 				print("guess:", guess_decoded)
@@ -156,11 +156,11 @@ class Trainer:
 			x,y,T,U,_ = batch
 			batch_size = len(x)
 			num_examples += batch_size
-			log_probs,_,_ = self.model(x,y,T,U)
+			log_probs,_,_ = self.model(x,y,T,U, self.config.deterministic_test)
 			loss = -log_probs.mean()
 			test_loss += loss.item() * batch_size
 			WERs = []
-			guesses,p_big,I_big = self.model.infer(x, T)
+			guesses,p_big,I_big = self.model.infer(x, self.config.deterministic_test, T)
 			batch_FLOPs = (1-I_big.mean())*self.model.FLOPs_small + I_big.mean()*self.model.FLOPs_big
 			FLOPs += [batch_FLOPs.item()] * batch_size
 			for i in range(batch_size):
