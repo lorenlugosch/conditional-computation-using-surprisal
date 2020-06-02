@@ -21,6 +21,8 @@ The code has been tested for the following datasets:
 
 Mini-LibriSpeech can be downloaded for free [here](https://www.openslr.org/31/). TIMIT must be purchased from LDC.
 
+After you've downloaded the dataset, change the `base_path` field in `mini-librispeech.cfg` and `timit.cfg` to point to where your folder the dataset folder is located, and move the `*.csv` files from `experiments/mini-librispeech-csv` or `experiments/timit-csv` into the dataset folder. (Note that `valid_data.csv` and `test_data.csv` are the same for Mini-LibriSpeech, as it has only train and test sets and no validation set.)
+
 ## Running the experiments
 
 Execute `python run_experiments.py`. (By default, this will run the ablation experiment on Mini-LibriSpeech. Change the base path in `run_experiments.py` if you want to use TIMIT.)
