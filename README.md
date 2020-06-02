@@ -10,6 +10,8 @@ This repo contains the experiment code for our paper, "Surprisal-Triggered Condi
 - tqdm
 - The `autoregressive-models` repo (get [here](https://github.com/lorenlugosch/autoregressive-models), clone into a folder adjacent to this one, and rename to `autoregressive_models` (needed for import to work))
 
+We used a single Tesla K80 GPU for our experiments. Training a single model takes about 1 hour on this GPU. Each experiment is run by training models with 5 random seeds, so a single experiment will require about 5 hours.
+
 ## Datasets
 
 The code has been tested for the following datasets:
