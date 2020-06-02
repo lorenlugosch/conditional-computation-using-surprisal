@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 experiments_folder = "experiments"
-#base_config_name = "mini-librispeech"
+base_config_name = "mini-librispeech"
 #base_config_name = "timit"
-base_config_name = "timit_0.65"
+#base_config_name = "timit_0.65"
 base_config_path = os.path.join(experiments_folder, base_config_name + ".cfg")
 
 class Experiment:
@@ -102,18 +102,6 @@ experiments.append(experiment)
 # run experiments
 for experiment in experiments:
 	experiment.run()
-
-# create .dat
-for experiment in experiments:
-	for surprisal_triggered_during_testing in [False, True]:
-		if experiment.big_only or experiment.small_only: continue
-		valid_loss_mean, valid_loss_std = experiment.get_results(column="WER", set="valid", surprisal_triggered=surprisal_triggered_during_testing)
-		with open(experiment.name + str(surprisal_triggered_during_testing) + ".dat", "w") as f:
-			f.write("x y err\n")
-			interval = 5 if base_config_name == "mini-librispeech" else 1
-			epochs = np.arange(1, 51, interval)
-			for i, epoch in enumerate(epochs):
-				f.write(str(epoch) + " " + str(valid_loss_mean[i] * 100) + " " + str(valid_loss_std[i] * 100) + "\n")
 
 # print test results
 for experiment in experiments:
