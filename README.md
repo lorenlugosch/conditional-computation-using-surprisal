@@ -1,6 +1,6 @@
 # conditional-computation-using-surprisal
 
-This repo contains the experiment code for our paper, "Surprisal-Triggered Conditional Computation with Neural Networks".
+This repo contains the experiment code for our paper, "[Surprisal-Triggered Conditional Computation with Neural Networks](https://arxiv.org/abs/2006.01659)".
 
 ## Requirements
 
